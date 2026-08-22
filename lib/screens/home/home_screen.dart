@@ -48,7 +48,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _ads = [];
   bool _isLoadingAds = true;
 
-  // إدارة المفضلة المحلية
   final Set<String> _favoriteAdIds = {};
 
   @override
@@ -84,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
             {'id': '3', 'name_ar': 'إلكترونيات', 'icon': 'phone_android'},
             {'id': '4', 'name_ar': 'أثاث ومنزل', 'icon': 'chair'},
             {'id': '5', 'name_ar': 'وظائف وخدمات', 'icon': 'work_outline'},
-            {'id': '6', 'name_ar': 'أزياء وجمال', 'icon': 'checkroom'},
+            {'id': '6', 'name_ar': 'أخرى', 'icon': 'category'},
           ];
         });
       }
@@ -92,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _fetchAds() async {
+    if (!mounted) return;
     setState(() => _isLoadingAds = true);
     try {
       final results = await SupabaseService.instance.searchAds(
@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_favoriteAdIds.contains(adId) ? 'تمت الإضافة إلى المفضلة ❤️' : 'تم الحذف من المفضلة'),
+        content: Text(_favoriteAdIds.contains(adId) ? 'تمت إضافة الإعلان إلى المفضلة ❤️' : 'تمت إزالة الإعلان من المفضلة'),
         duration: const Duration(seconds: 1),
         behavior: SnackBarBehavior.floating,
       ),
@@ -179,16 +179,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
                   const Row(
                     children: [
-                      Icon(Icons.tune, color: AppConfig.primaryColor),
+                      Icon(Icons.tune_rounded, color: AppConfig.primaryColor),
                       SizedBox(width: 8),
                       Text(
                         'خيارات الفلترة والتصفية',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
                       ),
                     ],
                   ),
                   const Divider(height: 24),
-                  const Text('المحافظة:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('المحافظة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: _selectedProvince,
@@ -197,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     items: _provinces.map((prov) {
-                      return DropdownMenuItem(value: prov, child: Text(prov));
+                      return DropdownMenuItem(value: prov, child: Text(prov, style: const TextStyle(fontSize: 13)));
                     }).toList(),
                     onChanged: (val) {
                       if (val != null) {
@@ -266,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         content: const Text(
-          'يجب عليك تسجيل الدخول أولاً لتتمكن من إضافة إعلان جديد.',
+          'يجب عليك تسجيل الدخول أولاً لتتمكن من إضافة إعلان جديد في سوق سوريا.',
           style: TextStyle(fontSize: 14, height: 1.5),
         ),
         actions: [
@@ -283,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pop(ctx);
               Navigator.pushNamed(context, AppRoutes.login);
             },
-            child: const Text('تسجيل الدخول', style: TextStyle(color: Colors.white)),
+            child: const Text('تسجيل الدخول', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -308,6 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (iconStr) {
       case 'apartment':
       case 'real_estate':
+      case 'home':
         return Icons.apartment;
       case 'directions_car':
       case 'car':
@@ -319,6 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'furniture':
         return Icons.chair;
       case 'work_outline':
+      case 'work':
       case 'job':
         return Icons.work_outline;
       case 'checkroom':
@@ -376,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildBottomNavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'الرئيسية', index: 0),
             _buildBottomNavItem(icon: Icons.grid_view_outlined, activeIcon: Icons.grid_view, label: 'الأقسام', index: 1),
-            const SizedBox(width: 48), // مساحة للزر الأوسط البارز
+            const SizedBox(width: 48),
             _buildBottomNavItem(icon: Icons.favorite_border, activeIcon: Icons.favorite, label: 'المفضلة', index: 2),
             _buildBottomNavItem(icon: Icons.person_outline, activeIcon: Icons.person, label: 'حسابي', index: 3),
           ],
@@ -437,22 +439,15 @@ class _HomeScreenState extends State<HomeScreen> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // 1. القسم العلوي (الهيدر، اختيار المحافظة، والبحث مع الفلترة)
             SliverToBoxAdapter(
               child: _buildHeaderSection(),
             ),
-
-            // 2. بانر العروض والإعلانات المميزة
             SliverToBoxAdapter(
               child: _buildBannerCard(),
             ),
-
-            // 3. شريط الأقسام الأفقية
             SliverToBoxAdapter(
               child: _buildHorizontalCategories(),
             ),
-
-            // عنوان شبكة الإعلانات
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -471,8 +466,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-
-            // 4. شبكة عرض الإعلانات (عمودين)
             if (_isLoadingAds)
               const SliverFillRemaining(
                 child: Center(
@@ -541,7 +534,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // شريط العنوان والمحافظة
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -584,8 +576,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 14),
-
-          // حقل البحث وزر الفلترة
           Row(
             children: [
               Expanded(
@@ -621,7 +611,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // زر الفلترة الجانبي
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -850,7 +839,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // صورة الإعلان والشارات + زر المفضلة
             Expanded(
               flex: 5,
               child: Stack(
@@ -870,8 +858,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Icon(Icons.image_not_supported, color: Colors.grey),
                           ),
                   ),
-
-                  // شارة الحالة (جديد / مستعمل / تم البيع)
                   Positioned(
                     top: 8,
                     right: 8,
@@ -889,8 +875,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-
-                  // زر المفضلة (القلب)
                   Positioned(
                     top: 6,
                     left: 6,
@@ -914,8 +898,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-
-            // تفاصيل الإعلان
             Expanded(
               flex: 4,
               child: Padding(
