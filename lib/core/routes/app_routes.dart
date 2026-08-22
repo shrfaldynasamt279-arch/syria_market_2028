@@ -7,23 +7,25 @@ import '../../screens/auth/signup_screen.dart';
 import '../../screens/categories/categories_screen.dart';
 import '../../screens/favorites/favorites_screen.dart';
 import '../../screens/home/home_screen.dart';
+import '../../screens/profile/profile_screen.dart';
 import '../../screens/support/support_screen.dart';
 
 class AppRoutes {
-  static const String home = '/home';
+  static const String home = '/';
   static const String login = '/login';
   static const String signup = '/signup';
-  static const String addAd = '/add_ad';
-  static const String myAds = '/my_ads';
-  static const String favorites = '/favorites';
+  static const String addAd = '/add-ad';
+  static const String myAds = '/my-ads';
   static const String categories = '/categories';
+  static const String favorites = '/favorites';
+  static const String profile = '/profile';
+  static const String admin = '/admin';
   static const String support = '/support';
-  static const String adminDashboard = '/admin_dashboard';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case home:
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
+        return MaterialPageRoute(builder: (_) => HomeScreen());
       case login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case signup:
@@ -32,16 +34,22 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => const AddAdScreen());
       case myAds:
         return MaterialPageRoute(builder: (_) => const MyAdsScreen());
-      case favorites:
-        return MaterialPageRoute(builder: (_) => const FavoritesScreen());
       case categories:
         return MaterialPageRoute(builder: (_) => const CategoriesScreen());
+      case favorites:
+        return MaterialPageRoute(builder: (_) => const FavoritesScreen());
+      case profile:
+        return MaterialPageRoute(builder: (_) => const ProfileScreen());
+      case admin:
+        return MaterialPageRoute(builder: (_) => AdminDashboardScreen());
       case support:
         return MaterialPageRoute(builder: (_) => const SupportScreen());
-      case adminDashboard:
-        return MaterialPageRoute(builder: (_) => const AdminDashboardScreen());
       default:
-        return MaterialPageRoute(builder: (_) => const HomeScreen());
+        return MaterialPageRoute(
+          builder: (_) => Scaffold(
+            body: Center(child: Text('المسار غير موجود: ${settings.name}')),
+          ),
+        );
     }
   }
 }
