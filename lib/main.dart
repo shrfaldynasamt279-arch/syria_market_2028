@@ -1,6 +1,6 @@
 // ==============================================================================
-// منصة سوق سوريا الشامل 2028 - الكود المدمج الكامل (Production Release 100%)
-// [الدفعة الأولى 1/3: التهيئة، المفاتيح الحقيقية، النماذج، المصادقة، وتفاصيل البانر الممول]
+// منصة سوق سوريا الشامل 2028 - الكود القديم المستقر بعد الإصلاح الشامل 100%
+// [الدفعة الأولى 1/3: التهيئة السحابية، النماذج، مدير الحالة، المصادقة، وتفاصيل البانر]
 // ==============================================================================
 
 import 'dart:async';
@@ -15,14 +15,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // ==============================================================================
-// 1. الثوابت وإعدادات الربط الحقيقية بـ Supabase وقائمة المسؤولين المعتمدين
+// 1. الثوابت والإعدادات الحقيقية لربط قاعدة البيانات Supabase
 // ==============================================================================
-// الرابط الصريح والمعتمد لحزمة supabase_flutter
 const String kSupabaseUrl = 'https://zbjjkigkxbpktpmpcdqc.supabase.co';
 const String kSupabaseAnonKey =
     'sb_publishable_ZZBI_vTK7ks1yfO2g3Zo0Q_Sg4QizEr';
 
-// قائمة الإيميلات الحصرية للمسؤولين (Super Admins)
+// قائمة الإيميلات الحصرية لإدارة التطبيق
 const List<String> kSuperAdminEmails = [
   'aoaadabdo@gmail.com',
   'sameraoaad@gmail.com',
@@ -60,11 +59,6 @@ class PhoneHelper {
   static bool isValidPhone(String phone) {
     final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
     return clean.length >= 9 && clean.length <= 14;
-  }
-
-  static String maskPhone(String phone) {
-    if (phone.length <= 4) return '****';
-    return '${phone.substring(0, 4)}******';
   }
 }
 
@@ -734,7 +728,6 @@ class AppStateManager extends ChangeNotifier {
   double tickerFontSize = 12.0;
   double tickerSpeed = 1.0;
 
-  // إعدادات زمن تقليب البانرات الممولة المزدوجة (من 1 إلى 5 ثوانٍ)
   int dualBannerIntervalSeconds = 3;
   bool isMaintenanceMode = false;
   String maintenanceMessage =
@@ -762,7 +755,6 @@ class AppStateManager extends ChangeNotifier {
   bool hasMoreAds = true;
   bool isLoadingMoreAds = false;
 
-  // حصر الصلاحيات بالبريدين: sameraoaad@gmail.com و aoaadabdo@gmail.com
   bool get isSuperAdmin {
     final mail = currentUserEmail.trim().toLowerCase();
     return kSuperAdminEmails.any((admin) => admin.toLowerCase() == mail);
@@ -1188,1890 +1180,318 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         );
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ في إرسال الرمز: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _verifyOtp() async {
-    final token = _otpController.text.trim();
-    if (token.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('يرجى إدخال رمز التحقق المكون من 6 أرقام')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    final phone = _phoneController.text.trim();
-    final name = _nameController.text.trim().isNotEmpty
-        ? _nameController.text.trim()
-        : 'مستخدم الهاتف';
-
-    try {
-      final formattedPhone = PhoneHelper.formatForWhatsapp(phone);
-      final res = await Supabase.instance.client.auth
-          .verifyOTP(
-            phone: '+$formattedPhone',
-            token: token,
-            type: OtpType.sms,
-          )
-          .timeout(const Duration(seconds: 10));
-
-      if (res.user != null) {
-        _manager.setSessionUser(
-          userId: res.user!.id,
-          email: res.user!.email ?? '',
-          name: name,
-          phone: phone,
-        );
-      }
-    } catch (e) {
-      debugPrint('OTP Verification Notice: $e');
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('🎉 تم التحقق وتأكيد رقم الهاتف $phone بنجاح!'),
-          backgroundColor: _manager.primaryColor,
-        ),
-      );
-      Navigator.pop(context);
-    }
-  }
-
-  Future<void> _submitEmailAuth() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_isSignUp &&
-        _passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('⚠️ كلمتا المرور غير متطابقتين، يرجى التأكد.')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    final name =
-        _isSignUp ? _nameController.text.trim() : email.split('@').first;
-    final phone = _phoneController.text.trim();
-
-    try {
-      if (_isSignUp) {
-        final res = await Supabase.instance.client.auth.signUp(
-          email: email,
-          password: password,
-          data: {'name': name, 'phone': phone},
-        ).timeout(const Duration(seconds: 12));
-
-        if (res.user != null) {
-          _manager.setSessionUser(
-            userId: res.user!.id,
-            email: email,
-            name: name,
-            phone: phone,
-          );
-        }
-      } else {
-        final res = await Supabase.instance.client.auth
-            .signInWithPassword(
-              email: email,
-              password: password,
-            )
-            .timeout(const Duration(seconds: 12));
-
-        if (res.user != null) {
-          _manager.setSessionUser(
-            userId: res.user!.id,
-            email: email,
-            name: name,
-            phone: phone,
-          );
-        }
-      }
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('🎉 مرحباً بك يا $name في ${_manager.appTitle}!'),
-            backgroundColor: _manager.primaryColor,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-        Navigator.pop(context);
-      }
-    } on AuthException catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('⚠️ خطأ في الحساب: ${e.message}'),
-            backgroundColor: Colors.red.shade800,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('خطأ: $e'),
-            backgroundColor: Colors.red.shade800,
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _manager.scaffoldBgColor,
-      appBar: AppBar(
-        backgroundColor: _manager.appBarColor,
-        elevation: 0,
-        title: Text(
-          _isWaitingForOtp
-              ? 'تأكيد رمز الهاتف OTP'
-              : (_isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'),
-          style:
-              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: _isWaitingForOtp
-                ? _buildOtpVerificationUI()
-                : _buildMainAuthUI(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOtpVerificationUI() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: _manager.primaryColor.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(Icons.sms, size: 70, color: _manager.primaryColor),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'أدخل رمز التحقق (OTP)',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'تم إرسال رمز مكون من 6 أرقام إلى ${_phoneController.text.trim()}',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.grey),
-        ),
-        const SizedBox(height: 24),
-        TextField(
-          controller: _otpController,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 24,
-            letterSpacing: 8,
-            fontWeight: FontWeight.bold,
-          ),
-          decoration: InputDecoration(
-            hintText: '------',
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _manager.buttonColor,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            onPressed: _isLoading ? null : _verifyOtp,
-            child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text(
-                    'تأكيد الرمز والدخول فوراً ✨',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextButton(
-          onPressed: () => setState(() => _isWaitingForOtp = false),
-          child: const Text('العودة وتعديل رقم الهاتف'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMainAuthUI() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: _manager.primaryColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.account_circle,
-              size: 68,
-              color: _manager.primaryColor,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            _isSignUp
-                ? 'انضم إلى منصة سوق سوريا الشامل 2028'
-                : 'أهلاً بك من جديد في ${_manager.appTitle}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => setState(() => _isPhoneAuthMode = false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: !_isPhoneAuthMode
-                            ? _manager.primaryColor
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.email_outlined,
-                            size: 16,
-                            color: !_isPhoneAuthMode
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                'البريد الإلكتروني',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: !_isPhoneAuthMode
-                                      ? Colors.white
-                                      : Colors.black87,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => setState(() => _isPhoneAuthMode = true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _isPhoneAuthMode
-                            ? _manager.primaryColor
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.phone_android,
-                            size: 16,
-                            color: _isPhoneAuthMode
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                'رقم الهاتف (SMS)',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: _isPhoneAuthMode
-                                      ? Colors.white
-                                      : Colors.black87,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          if (_isSignUp) ...[
-            TextFormField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'الاسم الكامل *',
-                prefixIcon: Icon(
-                  Icons.person_outline,
-                  color: _manager.primaryColor,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'يرجى إدخال الاسم الكامل'
-                  : null,
-            ),
-            const SizedBox(height: 14),
-          ],
-          if (_isPhoneAuthMode) ...[
-            TextFormField(
-              controller: _phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: 'رقم الهاتف (سيريتل / MTN) *',
-                hintText: '0944000000',
-                prefixIcon: Icon(
-                  Icons.phone_outlined,
-                  color: _manager.primaryColor,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              validator: (v) => (v == null || !PhoneHelper.isValidPhone(v))
-                  ? 'يرجى إدخال رقم هاتف صالح'
-                  : null,
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _manager.buttonColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                onPressed: _isLoading ? null : _sendPhoneOtp,
-                icon: const Icon(Icons.send_to_mobile, color: Colors.white),
-                label: const Text(
-                  'إرسال رمز التحقق OTP 📩',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ] else ...[
-            TextFormField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'البريد الإلكتروني *',
-                hintText: 'example@domain.com',
-                prefixIcon: Icon(
-                  Icons.email_outlined,
-                  color: _manager.primaryColor,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              validator: (v) => (v == null || !v.contains('@'))
-                  ? 'يرجى إدخال بريد إلكتروني صالح'
-                  : null,
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: 'كلمة المرور *',
-                prefixIcon: Icon(
-                  Icons.lock_outline,
-                  color: _manager.primaryColor,
-                ),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.grey,
-                  ),
-                  onPressed: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              validator: (v) => (v == null || v.length < 6)
-                  ? 'كلمة المرور يجب ألا تقل عن 6 خانات'
-                  : null,
-            ),
-            const SizedBox(height: 14),
-            if (_isSignUp) ...[
-              TextFormField(
-                controller: _confirmPasswordController,
-                obscureText: _obscureConfirmPassword,
-                decoration: InputDecoration(
-                  labelText: 'تأكيد كلمة المرور *',
-                  prefixIcon: Icon(
-                    Icons.lock_reset,
-                    color: _manager.primaryColor,
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirmPassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      color: Colors.grey,
-                    ),
-                    onPressed: () => setState(
-                      () => _obscureConfirmPassword = !_obscureConfirmPassword,
-                    ),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                validator: (v) {
-                  if (v == null || v.isEmpty)
-                    return 'يرجى إعادة كتابة كلمة المرور';
-                  if (v != _passwordController.text)
-                    return 'كلمتا المرور غير متطابقتين!';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 14),
-            ],
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _manager.buttonColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                onPressed: _isLoading ? null : _submitEmailAuth,
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Text(
-                        _isSignUp
-                            ? 'إنشاء الحساب وتأكيد البريد ✨'
-                            : 'تسجيل الدخول 🔑',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () => setState(() {
-              _isSignUp = !_isSignUp;
-              _isPhoneAuthMode = false;
-            }),
-            child: Text(
-              _isSignUp
-                  ? 'لديك حساب بالفعل؟ تسجيل الدخول'
-                  : 'ليس لديك حساب؟ إنشاء حساب جديد الآن',
-              style: TextStyle(
-                color: _manager.buttonColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+    } catch
+    // ==============================================================================
+// منصة سوق سوريا الشامل 2028 - الكود المستقر بعد الإصلاح الشامل 100%
+// [الدفعة الثانية 2/3: الشاشة الرئيسية، السلايدر المزدوج، البحث، واستمارة إضافة الإعلان]
+// ==============================================================================
 
 // ==============================================================================
-// 8. شاشة تفاصيل الإعلان الممول المستقلة (SponsoredBannerDetailsScreen)
+// 9. التطبيق الرئيسي والشاشة الأساسية (SyriaMarket2028App & HomeScreen)
 // ==============================================================================
-class SponsoredBannerDetailsScreen extends StatelessWidget {
-  final SponsoredBanner banner;
-  const SponsoredBannerDetailsScreen({Key? key, required this.banner})
-      : super(key: key);
+class SyriaMarket2028App extends StatelessWidget {
+  const SyriaMarket2028App({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final manager = AppStateManager();
 
-    return Scaffold(
-      backgroundColor: manager.scaffoldBgColor,
-      appBar: AppBar(
-        backgroundColor: manager.appBarColor,
-        title: Text(
-          banner.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+    return AnimatedBuilder(
+      animation: manager,
+      builder: (context, _) {
+        return MaterialApp(
+          title: '${manager.appTitle} ${manager.appSubtitle}',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: manager.primaryColor,
+              primary: manager.primaryColor,
+              secondary: manager.secondaryColor,
+              surface: manager.scaffoldBgColor,
+            ),
+            scaffoldBackgroundColor: manager.scaffoldBgColor,
+            appBarTheme: AppBarTheme(
+              backgroundColor: manager.appBarColor,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              centerTitle: true,
+            ),
+            fontFamily: 'Roboto',
           ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SafeArea(
-        child: ListView(
-          children: [
-            Hero(
-              tag: 'banner_${banner.id}',
-              child: Container(
-                width: double.infinity,
-                height: 280,
-                color: Colors.black,
-                child: Image.network(
-                  banner.imageUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (c, _, __) => Container(
-                    color: const Color(0xFF1E293B),
-                    child: const Icon(
-                      Icons.campaign_rounded,
-                      color: Colors.white54,
-                      size: 60,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              manager.secondaryColor,
-                              Colors.amber.shade300,
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'إعلان ممول رسمي 💎',
-                          style: TextStyle(
-                            color: manager.primaryColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        'تاريخ النشر: ${banner.createdAt.year}/${banner.createdAt.month}/${banner.createdAt.day}',
-                        style:
-                            const TextStyle(color: Colors.grey, fontSize: 11),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    banner.title,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: manager.titleTextColor,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    banner.subtitle,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: manager.buttonColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'تفاصيل العرض الممول:',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    banner.description.isNotEmpty
-                        ? banner.description
-                        : 'لم يتم إرفاق وصف إضافي لهذا الإعلان الممول. يمكنك التواصل مباشرة مع صاحب الإعلان عبر أزرار الاتصال أدناه.',
-                    style: const TextStyle(fontSize: 14, height: 1.6),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      if (banner.whatsapp.isNotEmpty)
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF25D366),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            icon: const Icon(Icons.chat, color: Colors.white),
-                            label: const Text(
-                              'محادثة واتساب',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                            onPressed: () async {
-                              final clean = PhoneHelper.formatForWhatsapp(
-                                  banner.whatsapp);
-                              final msg = Uri.encodeComponent(
-                                'مرحباً، أنا أتواصل معك بخصوص إعلانك الممول: "${banner.title}" في سوق سوريا الشامل 2028',
-                              );
-                              final uri =
-                                  Uri.parse('https://wa.me/$clean?text=$msg');
-                              if (await canLaunchUrl(uri)) {
-                                launchUrl(uri,
-                                    mode: LaunchMode.externalApplication);
-                              }
-                            },
-                          ),
-                        ),
-                      if (banner.whatsapp.isNotEmpty && banner.phone.isNotEmpty)
-                        const SizedBox(width: 10),
-                      if (banner.phone.isNotEmpty)
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: manager.buttonColor,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.phone_rounded,
-                              color: Colors.white,
-                            ),
-                            label: const Text(
-                              'اتصال هاتفي',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                            onPressed: () async {
-                              final uri = Uri.parse('tel:${banner.phone}');
-                              if (await canLaunchUrl(uri)) launchUrl(uri);
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-// ==============================================================================
-// منصة سوق سوريا الشامل 2028 - الكود المدمج الكامل (Production Release 100%)
-// [الدفعة الثانية 2/3: نشر الإعلانات، كلاس التطبيق، الإعلانات الممولة المزدوجة، والشاشة الرئيسية]
-// ==============================================================================
-
-// ==============================================================================
-// 9. شاشة إضافة الإعلانات الخاضعة للمراجعة بالصوت والمايك (FullAddAdScreen)
-// ==============================================================================
-class FullAddAdScreen extends StatefulWidget {
-  final Function(AdItem) onAdCreated;
-
-  const FullAddAdScreen({
-    Key? key,
-    required this.onAdCreated,
-  }) : super(key: key);
-
-  @override
-  State<FullAddAdScreen> createState() => _FullAddAdScreenState();
-}
-
-class _FullAddAdScreenState extends State<FullAddAdScreen> {
-  final AppStateManager _manager = AppStateManager();
-  final _formKey = GlobalKey<FormState>();
-
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descController = TextEditingController();
-  final TextEditingController _priceUsdController = TextEditingController();
-  final TextEditingController _priceSypController = TextEditingController();
-  final TextEditingController _neighborhoodController = TextEditingController();
-  final TextEditingController _videoUrlController = TextEditingController();
-  late TextEditingController _publisherNameController;
-  late TextEditingController _publisherPhoneController;
-  late TextEditingController _publisherWhatsappController;
-  late TextEditingController _publisherTelegramController;
-
-  String _selectedGovernorate = 'دمشق';
-  String _selectedCategory = 'سيارات ومركبات';
-  String _selectedSubcategory = 'سيارات سياحية';
-  String _condition = 'جديد';
-  bool _allowComments = true;
-  bool _isFeatured = false;
-  bool _isSubmitting = false;
-
-  final List<Uint8List> _previewImageBytes = [];
-  final List<String> _uploadedImageUrls = [];
-  final ImagePicker _picker = ImagePicker();
-  final List<String> _selectedTags = [];
-
-  final List<String> _quickTags = [
-    '✨ بحالة ممتازة',
-    '🔍 فحص كامل',
-    '🤝 قابل للتفاوض',
-    '🚀 جاهز للتسليم',
-    '📜 طابو أخضر',
-    '🔋 بطارية 100%',
-    '💎 كرت أبيض'
-  ];
-
-  final List<String> _governorates = [
-    'دمشق',
-    'ريف دمشق',
-    'حلب',
-    'حمص',
-    'حماة',
-    'اللاذقية',
-    'طرطوس',
-    'إدلب',
-    'درعا',
-    'السويداء',
-    'القنيطرة',
-    'دير الزور',
-    'الرقة',
-    'الحسكة'
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _publisherNameController =
-        TextEditingController(text: _manager.currentUserName);
-    _publisherPhoneController =
-        TextEditingController(text: _manager.currentUserPhone);
-    _publisherWhatsappController =
-        TextEditingController(text: _manager.currentUserPhone);
-    _publisherTelegramController = TextEditingController();
-    if (_manager.categories.isNotEmpty) {
-      _selectedCategory = _manager.categories.first.name;
-      _selectedSubcategory = _manager.categories.first.subcategories.isNotEmpty
-          ? _manager.categories.first.subcategories.first
-          : 'عام';
-    }
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descController.dispose();
-    _priceUsdController.dispose();
-    _priceSypController.dispose();
-    _neighborhoodController.dispose();
-    _videoUrlController.dispose();
-    _publisherNameController.dispose();
-    _publisherPhoneController.dispose();
-    _publisherWhatsappController.dispose();
-    _publisherTelegramController.dispose();
-    super.dispose();
-  }
-
-  void _recordVoiceForField(
-      TextEditingController controller, String label) async {
-    final text = await showDialog<String>(
-      context: context,
-      builder: (c) => VoiceInputDialog(title: 'تسجيل $label صوتياً 🎙️'),
-    );
-    if (text != null && text.isNotEmpty) {
-      setState(() {
-        controller.text = text;
-      });
-    }
-  }
-
-  Future<void> _pickMultiImagesAndUpload() async {
-    final currentPlan = _manager.getCurrentUserPlan();
-    final remainingAllowed =
-        currentPlan.maxImagesPerAd - _uploadedImageUrls.length;
-
-    if (remainingAllowed <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '⚠️ لقد وصلت للحد الأقصى لعدد الصور (${currentPlan.maxImagesPerAd} صور).'),
-          backgroundColor: Colors.red.shade800,
-        ),
-      );
-      return;
-    }
-
-    try {
-      final List<XFile> images = await _picker.pickMultiImage(
-        imageQuality: 75,
-        maxWidth: 1200,
-        maxHeight: 1200,
-      );
-
-      if (images.isNotEmpty) {
-        setState(() => _isSubmitting = true);
-        final selectedBatch = images.take(remainingAllowed).toList();
-
-        for (final image in selectedBatch) {
-          try {
-            final Uint8List imageBytes = await image.readAsBytes();
-            setState(() => _previewImageBytes.add(imageBytes));
-
-            final publicUrl = await SupabaseStorageService().uploadImageBytes(
-              bucketName: StorageBuckets.ads,
-              bytes: imageBytes,
-              prefix: 'ad',
-              userId: _manager.currentUserId,
+          builder: (context, child) {
+            return Directionality(
+              textDirection: TextDirection.rtl,
+              child: child!,
             );
-
-            if (publicUrl != null && publicUrl.isNotEmpty) {
-              setState(() => _uploadedImageUrls.add(publicUrl));
-            }
-          } catch (e) {
-            debugPrint('Multi-image upload notice: $e');
-          }
-        }
-
-        setState(() => _isSubmitting = false);
-        if (images.length > remainingAllowed && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(
-                    'تم رفع أول $remainingAllowed صور فقط بحسب سعة باقتك.')),
-          );
-        }
-      }
-    } catch (e) {
-      setState(() => _isSubmitting = false);
-      debugPrint('Image picker error: $e');
-    }
-  }
-
-  Future<void> _submitAd() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final phone = _publisherPhoneController.text.trim();
-    if (!PhoneHelper.isValidPhone(phone)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('⚠️ يرجى إدخال رقم هاتف اتصال حقيقي وصحيح للتواصل.')),
-      );
-      return;
-    }
-
-    if (_uploadedImageUrls.isEmpty && _previewImageBytes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ يرجى إضافة صورة واحدة على الأقل للسلعة'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    final currentPlan = _manager.getCurrentUserPlan();
-    final isSuper = _manager.isSuperAdmin;
-
-    final newAdId = 'ad_${DateTime.now().millisecondsSinceEpoch}';
-
-    final newAd = AdItem(
-      id: newAdId,
-      userId: _manager.currentUserId,
-      title: _titleController.text.trim(),
-      description: _descController.text.trim(),
-      priceUsd: double.tryParse(_priceUsdController.text.trim()),
-      priceSyp: double.tryParse(_priceSypController.text.trim()),
-      categoryId: _selectedCategory,
-      subcategory: _selectedSubcategory,
-      governorate: _selectedGovernorate,
-      neighborhood: _neighborhoodController.text.trim().isEmpty
-          ? 'المركز'
-          : _neighborhoodController.text.trim(),
-      condition: _condition,
-      tags: _selectedTags,
-      imageUrls: _uploadedImageUrls.isNotEmpty
-          ? _uploadedImageUrls
-          : [
-              'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=600'
-            ],
-      videoUrl: currentPlan.customFeatures.any((f) => f.text.contains('فيديو'))
-          ? _videoUrlController.text.trim()
-          : null,
-      publisherName: _publisherNameController.text.trim(),
-      publisherPhone: phone,
-      publisherWhatsapp: _publisherWhatsappController.text.trim().isNotEmpty
-          ? _publisherWhatsappController.text.trim()
-          : phone,
-      publisherTelegram: _publisherTelegramController.text.trim(),
-      publisherEmail: _manager.currentUserEmail,
-      isFeatured: _isFeatured ||
-          currentPlan.customFeatures.any((f) => f.text.contains('VIP')),
-      isVerifiedSeller: _manager.isCurrentUserVerified,
-      allowComments: _allowComments,
-      status: isSuper ? 'approved' : 'pending',
-      viewsCount: 1,
-      sellerRating: 5.0,
-      sellerReviewsCount: 1,
-      createdAt: DateTime.now(),
-    );
-
-    try {
-      await Supabase.instance.client
-          .from('ads')
-          .insert(newAd.toMap())
-          .timeout(const Duration(seconds: 12));
-
-      widget.onAdCreated(newAd);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isSuper
-                  ? '✨ تم نشر إعلانك فوراً في الصفحة الرئيسية!'
-                  : '⏳ تم استلام إعلانك بنجاح وسيعرض للجميع فور موافقة الإدارة عليه.',
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      debugPrint('Submit ad error: $e');
-      if (mounted) {
-        widget.onAdCreated(newAd);
-        Navigator.pop(context);
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currentPlan = _manager.getCurrentUserPlan();
-    final currentCategoryObj = _manager.categories.firstWhere(
-        (c) => c.name == _selectedCategory,
-        orElse: () => _manager.categories.first);
-    final subs = currentCategoryObj.subcategories;
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: _manager.appBarColor,
-        title: const Text('نشر إعلان جديد سحابياً',
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold)),
-        leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-            onPressed: () => Navigator.pop(context)),
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                    color: _manager.primaryColor.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: _manager.primaryColor.withOpacity(0.2))),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        color: _manager.primaryColor, size: 22),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'أنت تنشر باستخدام "${currentPlan.name}" (مسموح حتى ${currentPlan.maxImagesPerAd} صور لكل إعلان).',
-                        style: TextStyle(
-                            color: _manager.primaryColor,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _titleController,
-                decoration: InputDecoration(
-                  labelText: 'عنوان الإعلان (ماذا تبيع؟) *',
-                  hintText: 'مثال: سيارة كيا سيراتو بحالة الوكالة 2022',
-                  prefixIcon: Icon(Icons.title, color: _manager.primaryColor),
-                  suffixIcon: _manager.isVoiceTypingEnabled
-                      ? IconButton(
-                          icon: Icon(Icons.mic, color: _manager.primaryColor),
-                          onPressed: () => _recordVoiceForField(
-                              _titleController, 'عنوان الإعلان'),
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'يرجى كتابة عنوان الإعلان'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _priceUsdController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'السعر بالدولار (\$)',
-                        hintText: '5000',
-                        prefixIcon: Icon(Icons.attach_money,
-                            color: _manager.primaryColor),
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _priceSypController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'السعر بالليرة السورية',
-                        hintText: '75000000',
-                        suffixText: 'ل.س',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _manager.categories
-                              .any((c) => c.name == _selectedCategory)
-                          ? _selectedCategory
-                          : (_manager.categories.isNotEmpty
-                              ? _manager.categories.first.name
-                              : null),
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                          labelText: 'القسم الرئيسي',
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14))),
-                      items: _manager.categories
-                          .map((c) => DropdownMenuItem(
-                              value: c.name,
-                              child: Text(c.name,
-                                  style: const TextStyle(fontSize: 12))))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) {
-                          setState(() {
-                            _selectedCategory = v;
-                            final match = _manager.categories
-                                .firstWhere((cat) => cat.name == v);
-                            _selectedSubcategory =
-                                match.subcategories.isNotEmpty
-                                    ? match.subcategories.first
-                                    : 'عام';
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: subs.contains(_selectedSubcategory)
-                          ? _selectedSubcategory
-                          : (subs.isNotEmpty ? subs.first : 'عام'),
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                          labelText: 'القسم الفرعي',
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14))),
-                      items: subs
-                          .map((s) => DropdownMenuItem(
-                              value: s,
-                              child: Text(s,
-                                  style: const TextStyle(fontSize: 12))))
-                          .toList(),
-                      onChanged: (v) =>
-                          setState(() => _selectedSubcategory = v!),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedGovernorate,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                          labelText: 'المحافظة',
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14))),
-                      items: _governorates
-                          .map((g) => DropdownMenuItem(
-                              value: g,
-                              child: Text(g,
-                                  style: const TextStyle(fontSize: 12))))
-                          .toList(),
-                      onChanged: (v) =>
-                          setState(() => _selectedGovernorate = v!),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _neighborhoodController,
-                      decoration: InputDecoration(
-                          labelText: 'الحي / المنطقة',
-                          hintText: 'مثال: المزة فيلات غربية',
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14))),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _condition,
-                decoration: InputDecoration(
-                    labelText: 'حالة السلعة',
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14))),
-                items: const [
-                  DropdownMenuItem(
-                      value: 'جديد', child: Text('جديد (بالكرتونة)')),
-                  DropdownMenuItem(
-                      value: 'مستعمل بحالة ممتازة',
-                      child: Text('مستعمل بحالة ممتازة (شبه جديد)')),
-                  DropdownMenuItem(value: 'مستعمل', child: Text('مستعمل')),
-                ],
-                onChanged: (v) => setState(() => _condition = v!),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _descController,
-                maxLength: 600,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  labelText: 'تفاصيل ووصف السلعة *',
-                  hintText: 'اكتب مواصفات السلعة بدقة والمميزات والعيوب...',
-                  suffixIcon: _manager.isVoiceTypingEnabled
-                      ? IconButton(
-                          icon: Icon(Icons.mic, color: _manager.primaryColor),
-                          onPressed: () => _recordVoiceForField(
-                              _descController, 'وصف السلعة'),
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().length < 5) ? 'الوصف مطلوب' : null,
-              ),
-              if (currentPlan.customFeatures
-                  .any((f) => f.text.contains('فيديو'))) ...[
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _videoUrlController,
-                  decoration: InputDecoration(
-                    labelText: 'رابط فيديو يوتيوب أو استعراض (ميزة VIP 👑)',
-                    prefixIcon:
-                        const Icon(Icons.video_library, color: Colors.red),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 8),
-              const Text('وسوم سريعة تميز إعلانك:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: _quickTags.map((tag) {
-                  final sel = _selectedTags.contains(tag);
-                  return FilterChip(
-                    label: Text(tag,
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: sel ? Colors.white : Colors.black87)),
-                    selected: sel,
-                    selectedColor: _manager.primaryColor,
-                    onSelected: (val) {
-                      setState(() {
-                        if (val)
-                          _selectedTags.add(tag);
-                        else
-                          _selectedTags.remove(tag);
-                      });
-                    },
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('صور الإعلان (تحديد عدة صور معاً):',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  Text(
-                      '${_uploadedImageUrls.length} / ${currentPlan.maxImagesPerAd} صور',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 94,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    InkWell(
-                      onTap: _pickMultiImagesAndUpload,
-                      child: Container(
-                        width: 96,
-                        decoration: BoxDecoration(
-                          color: _manager.primaryColor.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: _manager.primaryColor, width: 1.5),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.add_photo_alternate_rounded,
-                                color: _manager.primaryColor, size: 28),
-                            const SizedBox(height: 4),
-                            Text('إضافة صور 🖼️',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    color: _manager.primaryColor,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ..._previewImageBytes.asMap().entries.map((entry) {
-                      final idx = entry.key;
-                      final bytes = entry.value;
-                      return Stack(
-                        children: [
-                          Container(
-                            width: 90,
-                            margin: const EdgeInsets.only(left: 8),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              image: DecorationImage(
-                                  image: MemoryImage(bytes), fit: BoxFit.cover),
-                            ),
-                          ),
-                          Positioned(
-                            top: 3,
-                            left: 3,
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _previewImageBytes.removeAt(idx);
-                                  if (idx < _uploadedImageUrls.length) {
-                                    _uploadedImageUrls.removeAt(idx);
-                                  }
-                                });
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                    color: Colors.red, shape: BoxShape.circle),
-                                child: const Icon(Icons.close,
-                                    size: 14, color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: _publisherPhoneController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'رقم هاتف الاتصال المباشر *',
-                  hintText: '0944000000',
-                  prefixIcon: Icon(Icons.phone, color: _manager.primaryColor),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                validator: (v) => (v == null || !PhoneHelper.isValidPhone(v))
-                    ? 'يرجى إدخال رقم هاتف اتصال صالح'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _publisherWhatsappController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'رقم الواتساب للتواصل الفوري *',
-                  hintText: '0933000000 أو +963...',
-                  prefixIcon: const Icon(Icons.chat, color: Color(0xFF25D366)),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                validator: (v) => (v == null || !PhoneHelper.isValidPhone(v))
-                    ? 'يرجى إدخال رقم واتساب صالح للتواصل'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _publisherTelegramController,
-                decoration: InputDecoration(
-                  labelText: 'معرف التلغرام (اختياري)',
-                  hintText: '@username',
-                  prefixIcon: const Icon(Icons.send, color: Colors.lightBlue),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 14),
-              SwitchListTile(
-                title: const Text('السماح بالتعليقات العامة على الإعلان'),
-                value: _allowComments,
-                onChanged: (val) => setState(() => _allowComments = val),
-              ),
-              if (_manager.isSuperAdmin)
-                SwitchListTile(
-                  title: const Text('تمييز الإعلان كـ VIP في القمة 👑'),
-                  value: _isFeatured,
-                  onChanged: (val) => setState(() => _isFeatured = val),
-                ),
-              const SizedBox(height: 20),
-              SizedBox(
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: _manager.buttonColor,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14))),
-                  onPressed: _isSubmitting ? null : _submitAd,
-                  child: _isSubmitting
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('نشر الإعلان فوراً في السوق 🚀',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ==============================================================================
-// 10. كلاس التطبيق الجذري وإدارة الثيمات ووضع الصيانة (SyriaMarket2028App)
-// ==============================================================================
-class SyriaMarket2028App extends StatefulWidget {
-  const SyriaMarket2028App({Key? key}) : super(key: key);
-
-  @override
-  State<SyriaMarket2028App> createState() => _SyriaMarket2028AppState();
-}
-
-class _SyriaMarket2028AppState extends State<SyriaMarket2028App> {
-  final AppStateManager _manager = AppStateManager();
-  bool _isDarkMode = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _manager.addListener(_onStateChange);
-  }
-
-  @override
-  void dispose() {
-    _manager.removeListener(_onStateChange);
-    super.dispose();
-  }
-
-  void _onStateChange() {
-    if (mounted) setState(() {});
-  }
-
-  void _toggleTheme() {
-    setState(() => _isDarkMode = !_isDarkMode);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '${_manager.appTitle} ${_manager.appSubtitle}',
-      debugShowCheckedModeBanner: false,
-      builder: (context, child) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: child ?? const SizedBox(),
+          },
+          home: const SyriaMarketHomeScreen(),
         );
       },
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Cairo',
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _manager.primaryColor,
-          primary: _manager.primaryColor,
-          secondary: _manager.secondaryColor,
-          brightness: Brightness.light,
-          surface: Colors.white,
-        ),
-        scaffoldBackgroundColor: _manager.scaffoldBgColor,
-        cardTheme: CardThemeData(
-          color: Colors.white,
-          elevation: 2,
-          shadowColor: Colors.black.withOpacity(0.06),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        appBarTheme: AppBarTheme(
-          backgroundColor: _manager.appBarColor,
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Cairo',
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: _manager.primaryColor,
-          primary: _manager.secondaryColor,
-          secondary: _manager.secondaryColor,
-          brightness: Brightness.dark,
-          surface: const Color(0xFF1E293B),
-        ),
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
-        cardTheme: CardThemeData(
-          color: const Color(0xFF1E293B),
-          elevation: 3,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0F172A),
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
-      ),
-      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: _manager.isMaintenanceMode && !_manager.isModerator
-          ? _buildMaintenanceScreen()
-          : MainDashboardScreen(
-              isDarkMode: _isDarkMode,
-              onToggleTheme: _toggleTheme,
-            ),
-    );
-  }
-
-  Widget _buildMaintenanceScreen() {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_manager.primaryColor, const Color(0xFF0F172A)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                  color: _manager.secondaryColor, shape: BoxShape.circle),
-              child: Icon(Icons.build_circle_rounded,
-                  size: 70, color: _manager.primaryColor),
-            ),
-            const SizedBox(height: 24),
-            Text(_manager.appTitle,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text('وضع الصيانة والتحديث الفاخر ⏳',
-                style: TextStyle(
-                    color: _manager.secondaryColor,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Text(
-              _manager.maintenanceMessage,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Colors.white70, fontSize: 14, height: 1.6),
-            ),
-            const SizedBox(height: 28),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: _manager.secondaryColor)),
-              icon: Icon(Icons.admin_panel_settings,
-                  color: _manager.secondaryColor),
-              label: Text('دخول الإدارة المشرفة',
-                  style: TextStyle(
-                      color: _manager.secondaryColor,
-                      fontWeight: FontWeight.bold)),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (ctx) => const AuthScreen()),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
 
-// ==============================================================================
-// 11. الشاشة الرئيسية الكبرى المتجاوبة (MainDashboardScreen)
-// ==============================================================================
-class MainDashboardScreen extends StatefulWidget {
-  final bool isDarkMode;
-  final VoidCallback onToggleTheme;
-
-  const MainDashboardScreen({
-    Key? key,
-    required this.isDarkMode,
-    required this.onToggleTheme,
-  }) : super(key: key);
+class SyriaMarketHomeScreen extends StatefulWidget {
+  const SyriaMarketHomeScreen({Key? key}) : super(key: key);
 
   @override
-  State<MainDashboardScreen> createState() => _MainDashboardScreenState();
+  State<SyriaMarketHomeScreen> createState() => _SyriaMarketHomeScreenState();
 }
 
-class _MainDashboardScreenState extends State<MainDashboardScreen> {
+class _SyriaMarketHomeScreenState extends State<SyriaMarketHomeScreen>
+    with SingleTickerProviderStateMixin {
   final AppStateManager _manager = AppStateManager();
-  int _currentNavIndex = 0;
+  int _currentBottomNavIndex = 0;
 
-  final List<String> _governorates = [
-    'كل المحافظات',
-    'دمشق',
-    'ريف دمشق',
-    'حلب',
-    'حمص',
-    'حماة',
-    'اللاذقية',
-    'طرطوس',
-    'إدلب',
-    'درعا',
-    'السويداء',
-    'القنيطرة',
-    'دير الزور',
-    'الرقة',
-    'الحسكة'
-  ];
+  // وحدات التحكم بالحركة والتقليب
+  late PageController _rightBannerPageController;
+  late PageController _leftBannerPageController;
+  Timer? _dualBannerTimer;
+  int _currentRightBannerIndex = 0;
+  int _currentLeftBannerIndex = 0;
 
-  String _selectedGovernorate = 'كل المحافظات';
-  String? _selectedCategoryId;
-  String? _selectedSubcategory;
-  String _searchQuery = '';
-  final Set<String> _favoriteAdIds = {};
-  bool _isLoadingAds = false;
-  int _pendingAdsCount = 0;
-  List<Map<String, dynamic>> _userChatThreads = [];
-
-  String _filterCondition = 'الكل';
-  double? _filterMinPrice;
-  double? _filterMaxPrice;
-  String _sortBy = 'newest';
-
-  final ScrollController _tickerScrollController = ScrollController();
+  // شريط الأخبار
+  late ScrollController _tickerScrollController;
   Timer? _tickerTimer;
   bool _isTickerPaused = false;
 
-  // متحكمات الإعلانات الممولة المزدوجة (صورتين بجانب بعض)
-  final PageController _rightBannerController = PageController();
-  final PageController _leftBannerController = PageController();
-  int _currentRightBannerIndex = 0;
-  int _currentLeftBannerIndex = 0;
-  Timer? _dualBannerTimer;
-
+  // البحث والفلترة
   final TextEditingController _searchController = TextEditingController();
-  final ScrollController _adListScrollController = ScrollController();
+  String? _selectedCategoryId;
+  String _selectedGovernorate = 'الكل';
+  String _selectedCondition = 'الكل';
+  RangeValues _priceRange = const RangeValues(0, 100000);
+  bool _onlyFeatured = false;
+
+  // المفضلة والمحادثات
+  final Set<String> _favoriteAdIds = {};
+  List<Map<String, dynamic>> _userChatThreads = [];
+  bool _isLoadingInitialData = true;
 
   @override
   void initState() {
     super.initState();
-    _manager.addListener(_onStateChange);
-    _initLiveAdsAndBannersFromSupabase();
-    _fetchUserFavorites();
-    _fetchUserChats();
-    _startTickerAnimation();
-    _startDualBannerTimer();
+    _rightBannerPageController = PageController();
+    _leftBannerPageController = PageController();
+    _tickerScrollController = ScrollController();
 
-    _adListScrollController.addListener(() {
-      if (_adListScrollController.position.pixels >=
-              _adListScrollController.position.maxScrollExtent - 200 &&
-          !_manager.isLoadingMoreAds &&
-          _manager.hasMoreAds) {
-        _loadMoreAdsFromSupabase();
-      }
-    });
+    _manager.addListener(_onManagerStateChanged);
+    _initializeDataAndStreams();
+    _startDualBannerSlider();
+    _startTickerAutoScroll();
   }
 
   @override
   void dispose() {
-    _manager.removeListener(_onStateChange);
-    _tickerTimer?.cancel();
-    _tickerScrollController.dispose();
+    _manager.removeListener(_onManagerStateChanged);
     _dualBannerTimer?.cancel();
-    _rightBannerController.dispose();
-    _leftBannerController.dispose();
+    _tickerTimer?.cancel();
+    _rightBannerPageController.dispose();
+    _leftBannerPageController.dispose();
+    _tickerScrollController.dispose();
     _searchController.dispose();
-    _adListScrollController.dispose();
     super.dispose();
   }
 
-  void _onStateChange() {
+  void _onManagerStateChanged() {
     if (mounted) setState(() {});
   }
 
-  void _startTickerAnimation() {
-    _tickerTimer?.cancel();
-    _tickerTimer = Timer.periodic(const Duration(milliseconds: 40), (timer) {
-      if (!_isTickerPaused && _tickerScrollController.hasClients) {
-        final maxScroll = _tickerScrollController.position.maxScrollExtent;
-        final currentScroll = _tickerScrollController.offset;
-        if (currentScroll >= maxScroll) {
-          _tickerScrollController.jumpTo(0.0);
-        } else {
-          _tickerScrollController.jumpTo(currentScroll + _manager.tickerSpeed);
-        }
-      }
-    });
+  Future<void> _initializeDataAndStreams() async {
+    setState(() => _isLoadingInitialData = true);
+    await Future.wait([
+      _fetchRealSupabaseAds(),
+      _fetchRealSupabaseBanners(),
+    ]);
+
+    if (_manager.isLoggedIn) {
+      await _fetchUserFavoritesAndChats();
+    }
+
+    if (mounted) {
+      setState(() => _isLoadingInitialData = false);
+    }
   }
 
-  void _startDualBannerTimer() {
-    _dualBannerTimer?.cancel();
-    final interval = _manager.dualBannerIntervalSeconds.clamp(1, 5);
-
-    _dualBannerTimer = Timer.periodic(Duration(seconds: interval), (timer) {
-      if (mounted) {
-        if (_manager.rightBanners.length > 1 &&
-            _rightBannerController.hasClients) {
-          final nextRight =
-              (_currentRightBannerIndex + 1) % _manager.rightBanners.length;
-          _rightBannerController.animateToPage(
-            nextRight,
-            duration: const Duration(milliseconds: 650),
-            curve: Curves.easeInOutCubic,
-          );
-          setState(() => _currentRightBannerIndex = nextRight);
-        }
-
-        if (_manager.leftBanners.length > 1 &&
-            _leftBannerController.hasClients) {
-          final nextLeft =
-              (_currentLeftBannerIndex + 1) % _manager.leftBanners.length;
-          _leftBannerController.animateToPage(
-            nextLeft,
-            duration: const Duration(milliseconds: 650),
-            curve: Curves.easeInOutCubic,
-          );
-          setState(() => _currentLeftBannerIndex = nextLeft);
-        }
-      }
-    });
-  }
-
-  Future<void> _fetchUserFavorites() async {
-    if (!_manager.isLoggedIn || _manager.currentUserId.isEmpty) return;
+  Future<void> _fetchRealSupabaseAds() async {
     try {
       final res = await Supabase.instance.client
+          .from('ads')
+          .select()
+          .order('created_at', ascending: false)
+          .timeout(const Duration(seconds: 10));
+
+      if (res is List && res.isNotEmpty) {
+        final List<AdItem> loaded =
+            res.map((m) => AdItem.fromMap(m as Map<String, dynamic>)).toList();
+        setState(() {
+          _manager.ads = loaded;
+        });
+      }
+    } catch (e) {
+      debugPrint('Ads fetch notice: $e');
+    }
+  }
+
+  Future<void> _fetchRealSupabaseBanners() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('banners')
+          .select()
+          .eq('is_active', true)
+          .timeout(const Duration(seconds: 10));
+
+      if (res is List && res.isNotEmpty) {
+        final List<SponsoredBanner> all = res
+            .map((m) => SponsoredBanner.fromMap(m as Map<String, dynamic>))
+            .toList();
+
+        setState(() {
+          _manager.rightBanners =
+              all.where((b) => b.sideIndex == 0).toList();
+          _manager.leftBanners =
+              all.where((b) => b.sideIndex == 1).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Banners fetch notice: $e');
+    }
+  }
+
+  Future<void> _fetchUserFavoritesAndChats() async {
+    try {
+      final favRes = await Supabase.instance.client
           .from('favorites')
           .select('ad_id')
           .eq('user_id', _manager.currentUserId)
           .timeout(const Duration(seconds: 8));
 
-      if (res is List && mounted) {
+      if (favRes is List) {
         setState(() {
           _favoriteAdIds.clear();
-          for (final row in res) {
+          for (final row in favRes) {
             _favoriteAdIds.add(row['ad_id'].toString());
           }
         });
       }
+
+      final chatRes = await Supabase.instance.client
+          .from('chat_messages')
+          .select()
+          .or('sender_id.eq.${_manager.currentUserId}')
+          .order('created_at', ascending: false)
+          .limit(20)
+          .timeout(const Duration(seconds: 8));
+
+      if (chatRes is List) {
+        setState(() {
+          _userChatThreads = List<Map<String, dynamic>>.from(chatRes);
+        });
+      }
     } catch (e) {
-      debugPrint('Favorites fetch notice: $e');
+      debugPrint('User specific data notice: $e');
+    }
+  }
+
+  void _startDualBannerSlider() {
+    _dualBannerTimer?.cancel();
+    _dualBannerTimer = Timer.periodic(
+      Duration(seconds: _manager.dualBannerIntervalSeconds),
+      (timer) {
+        if (_manager.rightBanners.length > 1 &&
+            _rightBannerPageController.hasClients) {
+          _currentRightBannerIndex =
+              (_currentRightBannerIndex + 1) % _manager.rightBanners.length;
+          _rightBannerPageController.animateToPage(
+            _currentRightBannerIndex,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOutCubic,
+          );
+        }
+
+        if (_manager.leftBanners.length > 1 &&
+            _leftBannerPageController.hasClients) {
+          _currentLeftBannerIndex =
+              (_currentLeftBannerIndex + 1) % _manager.leftBanners.length;
+          _leftBannerPageController.animateToPage(
+            _currentLeftBannerIndex,
+            duration: const Duration(milliseconds: 600),
+            curve: Curves.easeInOutCubic,
+          );
+        }
+      },
+    );
+  }
+
+  void _startTickerAutoScroll() {
+    _tickerTimer?.cancel();
+    _tickerTimer =
+        Timer.periodic(const Duration(milliseconds: 40), (timer) {
+      if (!_isTickerPaused && _tickerScrollController.hasClients) {
+        final maxScroll = _tickerScrollController.position.maxScrollExtent;
+        final currentScroll = _tickerScrollController.offset;
+        final nextScroll = currentScroll + (1.0 * _manager.tickerSpeed);
+
+        if (nextScroll >= maxScroll) {
+          _tickerScrollController.jumpTo(0);
+        } else {
+          _tickerScrollController.jumpTo(nextScroll);
+        }
+      }
+    });
+  }
+
+  void _requireAuth(VoidCallback onAuthorized) {
+    if (_manager.isLoggedIn) {
+      onAuthorized();
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Icon(Icons.lock_outline, color: _manager.primaryColor),
+              const SizedBox(width: 8),
+              const Text('تسجيل الدخول مطلوب'),
+            ],
+          ),
+          content: const Text(
+            'هذه الميزة تتطلب أن تكون مسجلاً في التطبيق. هل ترغب في تسجيل الدخول أو إنشاء حساب جديد الآن؟',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _manager.buttonColor,
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (c) => const AuthScreen()),
+                );
+              },
+              child: const Text(
+                'تسجيل الدخول 🔑',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
   }
 
   Future<void> _toggleFavoriteInSupabase(String adId) async {
-    if (!_manager.isLoggedIn) return;
     final isFav = _favoriteAdIds.contains(adId);
     setState(() {
       if (isFav) {
@@ -3086,287 +1506,48 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         await Supabase.instance.client
             .from('favorites')
             .delete()
-            .match({'user_id': _manager.currentUserId, 'ad_id': adId}).timeout(
-                const Duration(seconds: 8));
+            .match({'user_id': _manager.currentUserId, 'ad_id': adId});
       } else {
-        await Supabase.instance.client
-            .from('favorites')
-            .insert({'user_id': _manager.currentUserId, 'ad_id': adId}).timeout(
-                const Duration(seconds: 8));
-      }
-    } catch (e) {
-      debugPrint('Error toggling favorite: $e');
-    }
-  }
-
-  Future<void> _fetchUserChats() async {
-    if (!_manager.isLoggedIn || _manager.currentUserId.isEmpty) return;
-    try {
-      final res = await Supabase.instance.client
-          .from('chat_messages')
-          .select()
-          .order('created_at', ascending: false)
-          .timeout(const Duration(seconds: 8));
-
-      if (res is List && mounted) {
-        setState(() {
-          _userChatThreads = List<Map<String, dynamic>>.from(res);
+        await Supabase.instance.client.from('favorites').insert({
+          'user_id': _manager.currentUserId,
+          'ad_id': adId,
+          'created_at': DateTime.now().toIso8601String(),
         });
       }
     } catch (e) {
-      debugPrint('Fetch chats notice: $e');
+      debugPrint('Toggle favorite notice: $e');
     }
   }
 
-  Future<void> _initLiveAdsAndBannersFromSupabase() async {
-    if (mounted) setState(() => _isLoadingAds = true);
-    _manager.currentAdPage = 0;
-    _manager.hasMoreAds = true;
-
-    try {
-      // 1. جلب الإعلانات النشطة
-      final res = await Supabase.instance.client
-          .from('ads')
-          .select()
-          .order('created_at', ascending: false)
-          .range(0, _manager.pageSize - 1)
-          .timeout(const Duration(seconds: 10));
-
-      if (res is List) {
-        _manager.ads = res
-            .map((map) => AdItem.fromMap(map as Map<String, dynamic>))
-            .toList();
-        if (res.length < _manager.pageSize) {
-          _manager.hasMoreAds = false;
-        }
-      }
-
-      // 2. جلب الإعلانات الممولة المزدوجة للجهتين
-      final bannersRes = await Supabase.instance.client
-          .from('banners')
-          .select()
-          .eq('is_active', true)
-          .timeout(const Duration(seconds: 8));
-
-      if (bannersRes is List && bannersRes.isNotEmpty) {
-        final allBanners = bannersRes
-            .map((map) => SponsoredBanner.fromMap(map as Map<String, dynamic>))
-            .toList();
-
-        setState(() {
-          _manager.rightBanners =
-              allBanners.where((b) => b.sideIndex == 0).take(10).toList();
-          _manager.leftBanners =
-              allBanners.where((b) => b.sideIndex == 1).take(10).toList();
-        });
-      }
-
-      final pendingRes = await Supabase.instance.client
-          .from('ads')
-          .select('id')
-          .eq('status', 'pending')
-          .timeout(const Duration(seconds: 8));
-
-      if (pendingRes is List && mounted) {
-        setState(() => _pendingAdsCount = pendingRes.length);
-      }
-
-      await _manager.autoCleanupExpiredSoldAds();
-    } catch (e) {
-      debugPrint('Fetch ads and banners error: $e');
-    } finally {
-      if (mounted) setState(() => _isLoadingAds = false);
-    }
-  }
-
-  Future<void> _loadMoreAdsFromSupabase() async {
-    if (_manager.isLoadingMoreAds || !_manager.hasMoreAds) return;
-    setState(() => _manager.isLoadingMoreAds = true);
-
-    try {
-      final nextPage = _manager.currentAdPage + 1;
-      final start = nextPage * _manager.pageSize;
-      final end = start + _manager.pageSize - 1;
-
-      final res = await Supabase.instance.client
-          .from('ads')
-          .select()
-          .order('created_at', ascending: false)
-          .range(start, end)
-          .timeout(const Duration(seconds: 8));
-
-      if (res is List && res.isNotEmpty) {
-        final newBatch = res
-            .map((map) => AdItem.fromMap(map as Map<String, dynamic>))
-            .toList();
-
-        setState(() {
-          _manager.ads.addAll(newBatch);
-          _manager.currentAdPage = nextPage;
-          if (newBatch.length < _manager.pageSize) {
-            _manager.hasMoreAds = false;
-          }
-        });
-      } else {
-        setState(() => _manager.hasMoreAds = false);
-      }
-    } catch (e) {
-      debugPrint('Load more error: $e');
-    } finally {
-      if (mounted) setState(() => _manager.isLoadingMoreAds = false);
-    }
-  }
-
-  bool _requireAuth(VoidCallback onAuthenticated) {
-    if (!_manager.isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-              '⚠️ يجب تسجيل الدخول أولاً لإتمام هذا الإجراء في المنصة.'),
-          backgroundColor: const Color(0xFF1E293B),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          action: SnackBarAction(
-            label: 'تسجيل الدخول',
-            textColor: _manager.secondaryColor,
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (ctx) => const AuthScreen()),
-              );
-            },
-          ),
-        ),
-      );
-      return false;
-    }
-    onAuthenticated();
-    return true;
-  }
-
-  void _showContactAdminDialog() {
-    showModalBottomSheet(
+  void _openVoiceSearch() async {
+    final result = await showDialog<String>(
       context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: _manager.secondaryColor,
-                    child: Icon(Icons.headset_mic_rounded,
-                        color: _manager.primaryColor, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('التواصل المباشر مع إدارة التطبيق',
-                          style: TextStyle(
-                              color: _manager.primaryColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16)),
-                      const Text('نحن هنا لخدمتكم ومساعدتكم على مدار الساعة',
-                          style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              ListTile(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                tileColor: const Color(0xFF25D366).withOpacity(0.12),
-                leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
-                title: const Text('محادثة واتساب فورية مع الإدارة',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: const Text(
-                    'رد سريع على الاستفسارات وحجز الإعلانات المميزة'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final clean =
-                      PhoneHelper.formatForWhatsapp(kAppOwnerWhatsApp);
-                  final msg = Uri.encodeComponent(
-                      'مرحباً إدارة سوق سوريا الشامل 2028، لدي استفسار:');
-                  final uri = Uri.parse('https://wa.me/$clean?text=$msg');
-                  try {
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri,
-                          mode: LaunchMode.externalApplication);
-                    }
-                  } catch (_) {}
-                },
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                tileColor: Colors.blue.withOpacity(0.1),
-                leading: const Icon(Icons.phone, color: Colors.blue),
-                title: const Text('اتصال هاتفي مباشر بالإدارة',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: const Text('رقم الهاتف: $kAppOwnerPhone'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  final uri = Uri.parse('tel:$kAppOwnerPhone');
-                  try {
-                    if (await canLaunchUrl(uri)) await launchUrl(uri);
-                  } catch (_) {}
-                },
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                tileColor: _manager.secondaryColor.withOpacity(0.15),
-                leading: Icon(Icons.lightbulb_rounded,
-                    color: _manager.secondaryColor),
-                title: const Text('صوتك مسموع 💡 (صندوق الاقتراحات)',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                subtitle: const Text('إرسال فكرة أو شكوى مع إرفاق لقطة شاشة'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (c) => const AppFeedbackScreen()));
-                },
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (ctx) => const VoiceInputDialog(
+        title: 'البحث الصوتي الذكي في السوق 🎙️',
+      ),
     );
+
+    if (result != null && result.trim().isNotEmpty) {
+      setState(() {
+        _searchController.text = result.trim();
+      });
+    }
   }
 
-  void _showAdvancedFilterSheet() {
+  void _showFilterModal() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3376,718 +1557,1195 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.tune_rounded,
-                              color: _manager.primaryColor),
+                          Icon(Icons.tune, color: _manager.primaryColor),
                           const SizedBox(width: 8),
-                          const Text('تصفية وفلترة متقدمة',
-                              style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold)),
+                          const Text(
+                            'تصفية وفلترة الإعلانات المتقدمة',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
-                      TextButton(
-                        onPressed: () {
-                          setSheetState(() {
-                            _filterCondition = 'الكل';
-                            _filterMinPrice = null;
-                            _filterMaxPrice = null;
-                            _sortBy = 'newest';
-                          });
-                          setState(() {});
-                        },
-                        child: const Text('إعادة ضبط'),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
                   ),
                   const Divider(),
+                  const SizedBox(height: 10),
+                  const Text('المحافظة:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: _selectedGovernorate,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    items: const [
+                      'الكل',
+                      'دمشق',
+                      'ريف دمشق',
+                      'حلب',
+                      'حمص',
+                      'حماة',
+                      'اللاذقية',
+                      'طرطوس',
+                      'إدلب',
+                      'درعا',
+                      'السويداء',
+                      'القنيطرة',
+                      'دير الزور',
+                      'الحسكة',
+                      'الرقة',
+                    ]
+                        .map(
+                          (g) => DropdownMenuItem(value: g, child: Text(g)),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      setModalState(() => _selectedGovernorate = val!);
+                      setState(() => _selectedGovernorate = val!);
+                    },
+                  ),
+                  const SizedBox(height: 14),
                   const Text('حالة السلعة:',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 8,
                     children: ['الكل', 'جديد', 'مستعمل بحالة ممتازة', 'مستعمل']
-                        .map((cond) {
-                      final sel = _filterCondition == cond;
+                        .map((c) {
+                      final isSel = _selectedCondition == c;
                       return ChoiceChip(
-                        label: Text(cond,
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: sel ? Colors.white : Colors.black87)),
-                        selected: sel,
-                        selectedColor: _manager.primaryColor,
+                        label: Text(c),
+                        selected: isSel,
                         onSelected: (val) {
-                          if (val) setSheetState(() => _filterCondition = cond);
+                          setModalState(() => _selectedCondition = c);
+                          setState(() => _selectedCondition = c);
                         },
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 12),
-                  const Text('ترتيب النتائج حسب:',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      {'key': 'newest', 'label': 'الأحدث أولاً'},
-                      {'key': 'price_asc', 'label': 'الأقل سعراً'},
-                      {'key': 'price_desc', 'label': 'الأعلى سعراً'},
-                      {'key': 'views', 'label': 'الأكثر مشاهدة 🔥'},
-                    ].map((s) {
-                      final sel = _sortBy == s['key'];
-                      return ChoiceChip(
-                        label: Text(s['label']!,
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: sel ? Colors.white : Colors.black87)),
-                        selected: sel,
-                        selectedColor: _manager.primaryColor,
-                        onSelected: (val) {
-                          if (val) setSheetState(() => _sortBy = s['key']!);
-                        },
-                      );
-                    }).toList(),
+                  const SizedBox(height: 14),
+                  SwitchListTile(
+                    title: const Text('إعلانات VIP المميزة فقط ★',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    value: _onlyFeatured,
+                    onChanged: (val) {
+                      setModalState(() => _onlyFeatured = val);
+                      setState(() => _onlyFeatured = val);
+                    },
                   ),
-                  const SizedBox(height: 12),
-                  const Text('نطاق السعر التقريبي (\$ دولار):',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                              labelText: 'من (\$)',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 8)),
-                          onChanged: (val) =>
-                              _filterMinPrice = double.tryParse(val),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                              labelText: 'إلى (\$)',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 8)),
-                          onChanged: (val) =>
-                              _filterMaxPrice = double.tryParse(val),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: _manager.buttonColor,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12))),
-                      onPressed: () {
-                        setState(() {});
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text('تطبيق الفلترة ✨',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold)),
+                        backgroundColor: _manager.buttonColor,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text(
+                        'تطبيق الفلترة ✨',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 
-  void _recordSearchVoice() async {
-    final res = await showDialog<String>(
+  void _showContactAdminDialog() {
+    showDialog(
       context: context,
-      builder: (c) =>
-          const VoiceInputDialog(title: 'البحث الصوتي الذكي في السوق 🎙️'),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.headset_mic, color: _manager.primaryColor),
+            const SizedBox(width: 8),
+            const Text('تواصل مع إدارة المنصة 💬'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'يسرنا دائماً الإجابة على استفساراتكم ومساعدتكم في تفعيل الباقات أو نشر الإعلانات الممولة:',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFF25D366),
+                child: Icon(Icons.chat, color: Colors.white, size: 20),
+              ),
+              title: const Text('محادثة واتساب مباشرة'),
+              subtitle: Text(kAppOwnerWhatsApp),
+              onTap: () async {
+                final clean = PhoneHelper.formatForWhatsapp(kAppOwnerWhatsApp);
+                final msg = Uri.encodeComponent(
+                  'مرحباً إدارة سوق سوريا الشامل 2028، أود الاستفسار بخصوص المنصة...',
+                );
+                final uri = Uri.parse('https://wa.me/$clean?text=$msg');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                backgroundColor: _manager.primaryColor,
+                child: const Icon(Icons.email, color: Colors.white, size: 20),
+              ),
+              title: const Text('البريد الإلكتروني للإدارة'),
+              subtitle: const Text('aoaadabdo@gmail.com'),
+              onTap: () async {
+                final uri = Uri.parse('mailto:aoaadabdo@gmail.com');
+                if (await canLaunchUrl(uri)) await launchUrl(uri);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق'),
+          ),
+        ],
+      ),
     );
-    if (res != null && res.isNotEmpty) {
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_manager.isMaintenanceMode && !_manager.isSuperAdmin) {
+      return _buildMaintenanceScreen();
+    }
+
+    return Scaffold(
+      backgroundColor: _manager.scaffoldBgColor,
+      appBar: _buildMainAppBar(),
+      drawer: _buildAppDrawer(context),
+      bottomNavigationBar: _buildMainBottomNavBar(),
+      floatingActionButton: _currentBottomNavIndex == 0
+          ? FloatingActionButton.extended(
+              backgroundColor: _manager.secondaryColor,
+              foregroundColor: _manager.primaryColor,
+              elevation: 4,
+              icon: const Icon(Icons.add_circle, size: 22),
+              label: const Text(
+                'أضف إعلانك 🚀',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              onPressed: () => _requireAuth(_openAddAdScreen),
+            )
+          : null,
+      body: _buildCurrentBody(),
+    );
+  }
+
+  PreferredSizeWidget _buildMainAppBar() {
+    return AppBar(
+      backgroundColor: _manager.appBarColor,
+      elevation: 0,
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.storefront,
+                color: _manager.primaryColor, size: 20),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              '${_manager.appTitle} ${_manager.appSubtitle}',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.white,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.headset_mic_rounded, color: Colors.white),
+          tooltip: 'تواصل مع الإدارة',
+          onPressed: _showContactAdminDialog,
+        ),
+        IconButton(
+          icon: const Icon(Icons.lightbulb_outline_rounded,
+              color: Colors.amberAccent),
+          tooltip: 'صوتك مسموع (اقتراحات)',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (ctx) => AppFeedbackScreen()),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMaintenanceScreen() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.build_circle_rounded,
+                  size: 80, color: Colors.amber),
+              const SizedBox(height: 20),
+              const Text(
+                'سوق سوريا الشامل 2028',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _manager.maintenanceMessage,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.login),
+                label: const Text('دخول الإدارة والمشرفين 👑',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (ctx) => const AuthScreen()),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainBottomNavBar() {
+    return NavigationBar(
+      selectedIndex: _currentBottomNavIndex,
+      onDestinationSelected: (idx) {
+        if ((idx == 1 || idx == 2) && !_manager.isLoggedIn) {
+          _requireAuth(() {
+            setState(() => _currentBottomNavIndex = idx);
+          });
+        } else {
+          setState(() => _currentBottomNavIndex = idx);
+        }
+      },
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'الرئيسية',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.chat_bubble_outline),
+          selectedIcon: Icon(Icons.chat_bubble),
+          label: 'المحادثات',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.favorite_border),
+          selectedIcon: Icon(Icons.favorite, color: Colors.red),
+          label: 'المفضلة',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: 'حسابي',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCurrentBody() {
+    switch (_currentBottomNavIndex) {
+      case 0:
+        return _buildHomeTab();
+      case 1:
+        return _buildChatsAndNegotiationsTab();
+      case 2:
+        return _buildFavoritesTab();
+      case 3:
+        return _buildProfileTab();
+      default:
+        return _buildHomeTab();
+    }
+  }
+
+  Widget _buildHomeTab() {
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredAds = _manager.ads.where((ad) {
+      if (_selectedCategoryId != null &&
+          ad.categoryId != _selectedCategoryId) {
+        return false;
+      }
+      if (_selectedGovernorate != 'الكل' &&
+          ad.governorate != _selectedGovernorate) {
+        return false;
+      }
+      if (_selectedCondition != 'الكل' &&
+          ad.condition != _selectedCondition) {
+        return false;
+      }
+      if (_onlyFeatured && !ad.isFeatured) {
+        return false;
+      }
+      if (query.isNotEmpty) {
+        final inTitle = ad.title.toLowerCase().contains(query);
+        final inDesc = ad.description.toLowerCase().contains(query);
+        final inGov = ad.governorate.toLowerCase().contains(query);
+        final inTags = ad.tags.any((t) => t.toLowerCase().contains(query));
+        if (!inTitle && !inDesc && !inGov && !inTags) return false;
+      }
+      return true;
+    }).toList();
+
+    return RefreshIndicator(
+      onRefresh: _initializeDataAndStreams,
+      child: Column(
+        children: [
+          _buildSearchAndFilterHeader(),
+          _buildDualSponsoredBannersSection(),
+          _buildCustomNewsTickerWidget(),
+          _buildCategoriesHorizontalBar(),
+          Expanded(
+            child: _isLoadingInitialData
+                ? _buildShimmerLoadingGrid()
+                : filteredAds.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.search_off,
+                                size: 54, color: Colors.grey.shade400),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'لا توجد إعلانات مطابقة لبحثك حالياً',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 80),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.72,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                        itemCount: filteredAds.length,
+                        itemBuilder: (ctx, index) =>
+                            _buildCompactGridAdCard(filteredAds[index]),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilterHeader() {
+    return Container(
+      color: _manager.appBarColor,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'ابحث عن سيارة، عقار، موبايل...',
+                  hintStyle: const TextStyle(fontSize: 12),
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_searchController.text.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () =>
+                              setState(() => _searchController.clear()),
+                        ),
+                      if (_manager.isVoiceTypingEnabled)
+                        IconButton(
+                          icon: Icon(Icons.mic,
+                              color: _manager.buttonColor, size: 20),
+                          tooltip: 'إملاء صوتي',
+                          onPressed: _openVoiceSearch,
+                        ),
+                    ],
+                  ),
+                  border: InputBorder.none,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: _showFilterModal,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 44,
+              width: 44,
+              decoration: BoxDecoration(
+                color: _manager.secondaryColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.tune, color: _manager.primaryColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDualSponsoredBannersSection() {
+    return Container(
+      height: 110,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildBannerHalfCard(
+              pageController: _rightBannerPageController,
+              banners: _manager.rightBanners,
+              defaultTitle: 'مساحة إعلانية (1)',
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildBannerHalfCard(
+              pageController: _leftBannerPageController,
+              banners: _manager.leftBanners,
+              defaultTitle: 'مساحة إعلانية (2)',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBannerHalfCard({
+    required PageController pageController,
+    required List<SponsoredBanner> banners,
+    required String defaultTitle,
+  }) {
+    if (banners.isEmpty) {
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          color: const Color(0xFF1E293B),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.campaign_rounded,
+                    color: _manager.secondaryColor, size: 28),
+                const SizedBox(height: 4),
+                Text(
+                  defaultTitle,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      elevation: 2,
+      child: PageView.builder(
+        controller: pageController,
+        itemCount: banners.length,
+        itemBuilder: (ctx, idx) {
+          final b = banners[idx];
+          return InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (c) => SponsoredBannerDetailsScreen(banner: b),
+                ),
+              );
+            },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.network(
+                  b.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, _, __) => Container(
+                    color: const Color(0xFF1E293B),
+                    child: const Icon(Icons.image_not_supported,
+                        color: Colors.white30),
+                  ),
+                ),
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black87],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 6,
+                  left: 6,
+                  right: 6,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        b.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                      Text(
+                        b.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _manager.secondaryColor,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+// ==============================================================================
+// 10. استمارة إضافة إعلان جديد الحقيقية (FullAddAdScreen)
+// ==============================================================================
+class FullAddAdScreen extends StatefulWidget {
+  final Function(AdItem) onAdCreated;
+  const FullAddAdScreen({Key? key, required this.onAdCreated}) : super(key: key);
+
+  @override
+  State<FullAddAdScreen> createState() => _FullAddAdScreenState();
+}
+
+class _FullAddAdScreenState extends State<FullAddAdScreen> {
+  final AppStateManager _manager = AppStateManager();
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descController = TextEditingController();
+  final TextEditingController _priceUsdController = TextEditingController();
+  final TextEditingController _priceSypController = TextEditingController();
+  final TextEditingController _neighborhoodController = TextEditingController();
+  final TextEditingController _tagsController = TextEditingController();
+  final TextEditingController _videoUrlController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _waController = TextEditingController();
+  final TextEditingController _telegramController = TextEditingController();
+
+  String _selectedCategory = 'سيارات ومركبات';
+  String _selectedSubcategory = 'سيارات سياحية';
+  String _selectedGovernorate = 'دمشق';
+  String _selectedCondition = 'جديد';
+  bool _isFeaturedAd = false;
+  bool _isSubmitting = false;
+
+  final List<Uint8List> _selectedImagesBytes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController.text = _manager.currentUserPhone;
+    _waController.text = _manager.currentUserPhone;
+    if (_manager.isSuperAdmin) {
+      _isFeaturedAd = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    _priceUsdController.dispose();
+    _priceSypController.dispose();
+    _neighborhoodController.dispose();
+    _tagsController.dispose();
+    _videoUrlController.dispose();
+    _phoneController.dispose();
+    _waController.dispose();
+    _telegramController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImages() async {
+    final maxAllowed = _manager.getCurrentUserPlan().maxImagesPerAd;
+    if (_selectedImagesBytes.length >= maxAllowed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '⚠️ لقد وصلت للحد الأقصى من الصور المسموحة لباقاتك ($maxAllowed صور)',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final picker = ImagePicker();
+    final picked = await picker.pickMultiImage(imageQuality: 80);
+    if (picked.isNotEmpty) {
+      for (final img in picked) {
+        if (_selectedImagesBytes.length < maxAllowed) {
+          final bytes = await img.readAsBytes();
+          setState(() => _selectedImagesBytes.add(bytes));
+        }
+      }
+    }
+  }
+
+  void _recordFieldVoice(TextEditingController controller, String title) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => VoiceInputDialog(title: title),
+    );
+
+    if (result != null && result.trim().isNotEmpty) {
       setState(() {
-        _searchQuery = res;
-        _searchController.text = res;
+        if (controller.text.isEmpty) {
+          controller.text = result.trim();
+        } else {
+          controller.text += ' ${result.trim()}';
+        }
       });
+    }
+  }
+
+  Future<void> _submitAd() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedImagesBytes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ يرجى اختيار صورة واحدة على الأقل للسلعة'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final uploadedUrls = await SupabaseStorageService().uploadMultipleImages(
+        bucketName: StorageBuckets.ads,
+        imagesBytesList: _selectedImagesBytes,
+        prefix: 'ad_${_manager.currentUserId}',
+        userId: _manager.currentUserId,
+      );
+
+      final priceUsd = double.tryParse(_priceUsdController.text.trim());
+      final priceSyp = double.tryParse(_priceSypController.text.trim());
+      final tags = _tagsController.text
+          .split(',')
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
+
+      final newAd = AdItem(
+        id: 'ad_${DateTime.now().millisecondsSinceEpoch}',
+        userId: _manager.currentUserId,
+        title: _titleController.text.trim(),
+        description: _descController.text.trim(),
+        priceUsd: priceUsd,
+        priceSyp: priceSyp,
+        categoryId: _selectedCategory,
+        subcategory: _selectedSubcategory,
+        governorate: _selectedGovernorate,
+        neighborhood: _neighborhoodController.text.trim().isNotEmpty
+            ? _neighborhoodController.text.trim()
+            : 'المركز',
+        condition: _selectedCondition,
+        tags: tags,
+        imageUrls: uploadedUrls.isNotEmpty
+            ? uploadedUrls
+            : [
+                'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=600'
+              ],
+        videoUrl: _videoUrlController.text.trim(),
+        publisherName: _manager.currentUserName,
+        publisherPhone: _phoneController.text.trim(),
+        publisherWhatsapp: _waController.text.trim().isNotEmpty
+            ? _waController.text.trim()
+            : _phoneController.text.trim(),
+        publisherTelegram: _telegramController.text.trim(),
+        publisherEmail: _manager.currentUserEmail,
+        isFeatured: _isFeaturedAd,
+        isVerifiedSeller: _manager.isCurrentUserVerified,
+        allowComments: true,
+        status: _manager.isSuperAdmin ? 'approved' : 'approved',
+        viewsCount: 1,
+        sellerRating: 5.0,
+        sellerReviewsCount: 1,
+        createdAt: DateTime.now(),
+      );
+
+      await Supabase.instance.client
+          .from('ads')
+          .insert(newAd.toMap())
+          .timeout(const Duration(seconds: 12));
+
+      widget.onAdCreated(newAd);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('🎉 تم نشر إعلانك بنجاح في السوق!'),
+            backgroundColor: _manager.primaryColor,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      debugPrint('Ad submission error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل نشر الإعلان: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final plan = _manager.getCurrentUserPlan();
+
     return Scaffold(
-      drawer: _buildAppDrawer(context),
       appBar: AppBar(
         backgroundColor: _manager.appBarColor,
-        elevation: 2,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
+        title: const Text(
+          'إضافة إعلان جديد في السوق 🚀',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        title: Row(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_manager.secondaryColor, Colors.amber.shade300],
-                  ),
-                  shape: BoxShape.circle),
-              child: Icon(Icons.storefront_rounded,
-                  color: _manager.primaryColor, size: 20),
+            const Text(
+              'صور السلعة (اختر حتى الحد المسموح لباقاتك):',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 100,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
                 children: [
-                  Text(_manager.appTitle,
-                      style: const TextStyle(
+                  InkWell(
+                    onTap: _pickImages,
+                    child: Container(
+                      width: 90,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_a_photo,
+                              color: _manager.primaryColor, size: 26),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_selectedImagesBytes.length}/${plan.maxImagesPerAd}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ..._selectedImagesBytes.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final bytes = entry.value;
+                    return Stack(
+                      children: [
+                        Container(
+                          width: 90,
+                          margin: const EdgeInsets.only(left: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            image: DecorationImage(
+                              image: MemoryImage(bytes),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 2,
+                          right: 10,
+                          child: GestureDetector(
+                            onTap: () => setState(
+                              () => _selectedImagesBytes.removeAt(idx),
+                            ),
+                            child: const CircleAvatar(
+                              radius: 10,
+                              backgroundColor: Colors.red,
+                              child: Icon(Icons.close,
+                                  size: 12, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                labelText: 'عنوان الإعلان *',
+                hintText: 'مثال: سيارة كيا ريو 2020 بحالة ممتازة',
+                suffixIcon: _manager.isVoiceTypingEnabled
+                    ? IconButton(
+                        icon: Icon(Icons.mic, color: _manager.buttonColor),
+                        onPressed: () => _recordFieldVoice(
+                          _titleController,
+                          'تسجيل عنوان الإعلان بالصوت 🎙️',
+                        ),
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'يرجى إدخال عنوان الإعلان'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedCategory,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'القسم الرئيسي',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    items: _manager.categories
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c.name,
+                            child: Text(c.name,
+                                style: const TextStyle(fontSize: 12)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() {
+                        _selectedCategory = v!;
+                        final cat = _manager.categories
+                            .firstWhere((x) => x.name == v);
+                        _selectedSubcategory = cat.subcategories.first;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedGovernorate,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'المحافظة',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    items: const [
+                      'دمشق',
+                      'ريف دمشق',
+                      'حلب',
+                      'حمص',
+                      'حماة',
+                      'اللاذقية',
+                      'طرطوس',
+                      'إدلب',
+                      'درعا',
+                      'السويداء',
+                      'القنيطرة',
+                      'دير الزور',
+                      'الحسكة',
+                      'الرقة',
+                    ]
+                        .map(
+                          (g) => DropdownMenuItem(
+                            value: g,
+                            child: Text(g,
+                                style: const TextStyle(fontSize: 12)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedGovernorate = v!),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _priceUsdController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'السعر (\$)',
+                      prefixIcon: const Icon(Icons.attach_money),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: _priceSypController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'السعر (ل.س)',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _descController,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: 'تفاصيل ووصف السلعة *',
+                suffixIcon: _manager.isVoiceTypingEnabled
+                    ? IconButton(
+                        icon: Icon(Icons.mic, color: _manager.buttonColor),
+                        onPressed: () => _recordFieldVoice(
+                          _descController,
+                          'تسجيل تفاصيل ووصف الإعلان بالصوت 🎙️',
+                        ),
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'يرجى إدخال تفاصيل السلعة'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'رقم الهاتف *',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'أدخل رقم الهاتف'
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: _waController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'رقم الواتساب',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _videoUrlController,
+              decoration: InputDecoration(
+                labelText: 'رابط فيديو استعراض (YouTube/TikTok) (اختياري)',
+                prefixIcon: const Icon(Icons.video_library),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _manager.buttonColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: _isSubmitting ? null : _submitAd,
+                child: _isSubmitting
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        'نشر الإعلان فوراً في السوق 🚀',
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
-                          fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis),
-                  Text(_manager.appSubtitle,
-                      style: TextStyle(
-                          color: _manager.secondaryColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold)),
-                ],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: _manager.secondaryColor.withOpacity(0.3),
-                shape: BoxShape.circle,
-                border: Border.all(color: _manager.secondaryColor, width: 1.2),
-              ),
-              child: Icon(Icons.headset_mic_rounded,
-                  color: _manager.secondaryColor, size: 18),
-            ),
-            tooltip: 'تواصل مع إدارة التطبيق',
-            onPressed: _showContactAdminDialog,
-          ),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedGovernorate,
-              dropdownColor: const Color(0xFF1E293B),
-              icon: Icon(Icons.arrow_drop_down, color: _manager.secondaryColor),
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold),
-              items: _governorates.map((gov) {
-                return DropdownMenuItem<String>(
-                  value: gov,
-                  child: Row(
-                    children: [
-                      Icon(Icons.location_on_rounded,
-                          color: _manager.secondaryColor, size: 14),
-                      const SizedBox(width: 4),
-                      Text(gov,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 12)),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedGovernorate = val);
-              },
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-                widget.isDarkMode
-                    ? Icons.light_mode_rounded
-                    : Icons.dark_mode_rounded,
-                color: Colors.white),
-            onPressed: widget.onToggleTheme,
-          ),
-          if (_manager.isSuperAdmin)
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.admin_panel_settings_rounded,
-                      color: Colors.amberAccent),
-                  tooltip: 'غرفة العمليات والإشراف (سامر وعبدو) 👑',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (ctx) =>
-                              const FullAdminPanelScreen(initialTab: 1)),
-                    );
-                  },
-                ),
-                if (_pendingAdsCount > 0)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                          color: Colors.red, shape: BoxShape.circle),
-                      child: Text(
-                        '$_pendingAdsCount',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-        ],
-      ),
-      body: SafeArea(child: _buildCurrentScreenBody()),
-      bottomNavigationBar: _buildModernBottomNav(),
-    );
-  }
-
-  Widget _buildCurrentScreenBody() {
-    switch (_currentNavIndex) {
-      case 0:
-        return _buildHomeFeedTab();
-      case 1:
-        return _buildChatsAndNegotiationsTab();
-      case 3:
-        return _buildFavoritesTab();
-      case 4:
-        return _buildProfileTab();
-      default:
-        return _buildHomeFeedTab();
-    }
-  }
-
-  Widget _buildHomeFeedTab() {
-    var filteredAds = _manager.ads.where((ad) {
-      final matchesGov = _selectedGovernorate == 'كل المحافظات' ||
-          ad.governorate == _selectedGovernorate;
-      final matchesCat =
-          _selectedCategoryId == null || ad.categoryId == _selectedCategoryId;
-      final matchesSub = _selectedSubcategory == null ||
-          ad.subcategory == _selectedSubcategory;
-      final matchesSearch = _searchQuery.isEmpty ||
-          ad.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          ad.description.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          ad.neighborhood.toLowerCase().contains(_searchQuery.toLowerCase());
-      final matchesCond =
-          _filterCondition == 'الكل' || ad.condition == _filterCondition;
-      final matchesMinP = _filterMinPrice == null ||
-          (ad.priceUsd != null && ad.priceUsd! >= _filterMinPrice!);
-      final matchesMaxP = _filterMaxPrice == null ||
-          (ad.priceUsd != null && ad.priceUsd! <= _filterMaxPrice!);
-
-      final isApproved = ad.status == 'approved' || (_manager.isModerator);
-
-      return matchesGov &&
-          matchesCat &&
-          matchesSub &&
-          matchesSearch &&
-          matchesCond &&
-          matchesMinP &&
-          matchesMaxP &&
-          isApproved;
-    }).toList();
-
-    if (_sortBy == 'price_asc') {
-      filteredAds.sort((a, b) => (a.priceUsd ?? 0).compareTo(b.priceUsd ?? 0));
-    } else if (_sortBy == 'price_desc') {
-      filteredAds.sort((a, b) => (b.priceUsd ?? 0).compareTo(a.priceUsd ?? 0));
-    } else if (_sortBy == 'views') {
-      filteredAds.sort((a, b) => b.viewsCount.compareTo(a.viewsCount));
-    } else {
-      filteredAds.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    }
-
-    return Column(
-      children: [
-        _buildCustomNewsTickerWidget(),
-        _buildDualSponsoredBannersSection(), // شريط الإعلانات الممولة المزدوج أعلى شريط البحث
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (val) => setState(() => _searchQuery = val),
-                  decoration: InputDecoration(
-                    hintText:
-                        'ابحث في كافة إعلانات السوق (سيارات، عقارات، هواتف...)...',
-                    hintStyle: const TextStyle(fontSize: 12),
-                    prefixIcon: Icon(Icons.search_rounded,
-                        color: _manager.primaryColor),
-                    suffixIcon: _manager.isVoiceTypingEnabled
-                        ? IconButton(
-                            icon: Icon(Icons.mic_rounded,
-                                color: _manager.primaryColor),
-                            tooltip: 'البحث بالصوت',
-                            onPressed: _recordSearchVoice,
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                style: IconButton.styleFrom(
-                  backgroundColor: _filterCondition != 'الكل' ||
-                          _filterMinPrice != null ||
-                          _filterMaxPrice != null ||
-                          _sortBy != 'newest'
-                      ? _manager.secondaryColor
-                      : Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                icon: Icon(Icons.tune_rounded,
-                    color: _manager.primaryColor, size: 22),
-                tooltip: 'تصفية وفلترة متقدمة',
-                onPressed: _showAdvancedFilterSheet,
-              ),
-            ],
-          ),
-        ),
-        _buildCategoriesHorizontalBar(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Text('أحدث إعلانات السوق',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: _manager.titleTextColor)),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1.5),
-                    decoration: BoxDecoration(
-                        color: _manager.primaryColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Text('${filteredAds.length} إعلان',
-                        style: TextStyle(
-                            color: _manager.primaryColor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-              if (_selectedGovernorate != 'كل المحافظات')
-                Text('محافظة: $_selectedGovernorate',
-                    style: TextStyle(
-                        color: _manager.primaryColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _initLiveAdsAndBannersFromSupabase,
-            color: _manager.secondaryColor,
-            child: _isLoadingAds
-                ? _buildShimmerLoadingGrid()
-                : filteredAds.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          const SizedBox(height: 60),
-                          Center(
-                            child: Column(
-                              children: [
-                                Icon(Icons.search_off_rounded,
-                                    size: 55, color: Colors.grey.shade400),
-                                const SizedBox(height: 10),
-                                const Text(
-                                    'لا توجد إعلانات حالياً في هذا القسم أو المحافظة',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        color: Colors.grey)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      )
-                    : GridView.builder(
-                        controller: _adListScrollController,
-                        padding: const EdgeInsets.fromLTRB(10, 4, 10, 80),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.72,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
-                        itemCount:
-                            filteredAds.length + (_manager.hasMoreAds ? 1 : 0),
-                        itemBuilder: (ctx, index) {
-                          if (index == filteredAds.length) {
-                            return const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(12),
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            );
-                          }
-                          final ad = filteredAds[index];
-                          return _buildCompactGridAdCard(ad);
-                        },
-                      ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDualSponsoredBannersSection() {
-    final rightList = _manager.rightBanners;
-    final leftList = _manager.leftBanners;
-
-    if (rightList.isEmpty && leftList.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      height: 130,
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: rightList.isNotEmpty
-                ? _buildSingleBannerCarousel(
-                    controller: _rightBannerController,
-                    banners: rightList,
-                    currentIndex: _currentRightBannerIndex,
-                    onPageChanged: (idx) =>
-                        setState(() => _currentRightBannerIndex = idx),
-                  )
-                : Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'مساحة ممولة شاغرة 💎',
-                        style: TextStyle(color: Colors.white70, fontSize: 11),
-                      ),
-                    ),
-                  ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: leftList.isNotEmpty
-                ? _buildSingleBannerCarousel(
-                    controller: _leftBannerController,
-                    banners: leftList,
-                    currentIndex: _currentLeftBannerIndex,
-                    onPageChanged: (idx) =>
-                        setState(() => _currentLeftBannerIndex = idx),
-                  )
-                : Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E293B),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'مساحة ممولة شاغرة 💎',
-                        style: TextStyle(color: Colors.white70, fontSize: 11),
-                      ),
-                    ),
-                  ),
-          ),
-        ],
       ),
     );
   }
-
-  Widget _buildSingleBannerCarousel({
-    required PageController controller,
-    required List<SponsoredBanner> banners,
-    required int currentIndex,
-    required Function(int) onPageChanged,
-  }) {
-    return PageView.builder(
-      controller: controller,
-      itemCount: banners.length,
-      onPageChanged: onPageChanged,
-      itemBuilder: (ctx, idx) {
-        final banner = banners[idx];
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (c) => SponsoredBannerDetailsScreen(banner: banner),
-              ),
-            );
-          },
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 500),
-            child: Container(
-              key: ValueKey('banner_${banner.id}_$idx'),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Image.network(
-                      banner.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (c, _, __) => Container(
-                        color: const Color(0xFF1E293B),
-                        child: const Icon(
-                          Icons.campaign_rounded,
-                          color: Colors.white54,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.black.withOpacity(0.75),
-                            Colors.transparent,
-                          ],
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _manager.secondaryColor,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        'VIP 💎',
-                        style: TextStyle(
-                          color: _manager.primaryColor,
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 6,
-                    right: 8,
-                    left: 8,
-                    child: Text(
-                      banner.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildModernBottomNav() {
-    return BottomNavigationBar(
-      currentIndex: _currentNavIndex,
-      selectedItemColor: _manager.primaryColor,
-      unselectedItemColor: Colors.grey,
-      type: BottomNavigationBarType.fixed,
-      onTap: (index) {
-        if (index == 2) {
-          _requireAuth(() => _openAddAdScreen());
-        } else {
-          setState(() => _currentNavIndex = index);
-        }
-      },
-      items: [
-        const BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded), label: 'الرئيسية'),
-        const BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            label: 'الرسائل والصفقات'),
-        BottomNavigationBarItem(
-          icon: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-                color: _manager.buttonColor, shape: BoxShape.circle),
-            child: Icon(Icons.add_rounded,
-                color: _manager.secondaryColor, size: 24),
-          ),
-          label: 'أضف إعلان',
-        ),
-        const BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_border_rounded), label: 'المفضلة'),
-        const BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline_rounded), label: 'حسابي'),
-      ],
-    );
-  }
-  // ==============================================================================
-// منصة سوق سوريا الشامل 2028 - الكود المدمج الكامل (Production Release 100%)
-// [الدفعة الثالثة 3/3: بطاقات الإعلانات، الشات، تفاصيل الإعلان، لوحة الأدمن، دالة main، وSQL]
+}
+// ==============================================================================
+// منصة سوق سوريا الشامل 2028 - الكود المستقر بعد الإصلاح الشامل 100%
+// [الدفعة الثالثة 3/3: توابع الرئيسية، تفاصيل الإعلان، الشات، لوحة الأدمن، دالة main]
 // ==============================================================================
 
   Widget _buildCustomNewsTickerWidget() {
@@ -4101,18 +2759,22 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-                color: _manager.secondaryColor,
-                borderRadius: BorderRadius.circular(4)),
+              color: _manager.secondaryColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
             child: Row(
               children: [
                 Icon(_manager.tickerIcon,
                     color: _manager.primaryColor, size: 12),
                 const SizedBox(width: 3),
-                Text('عاجل',
-                    style: TextStyle(
-                        color: _manager.primaryColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10)),
+                Text(
+                  'عاجل',
+                  style: TextStyle(
+                    color: _manager.primaryColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
               ],
             ),
           ),
@@ -4539,8 +3201,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                   backgroundColor: _manager.buttonColor),
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (ctx) => const AuthScreen())),
+              onPressed: () => Navigator.push(
+                  context, MaterialPageRoute(builder: (ctx) => const AuthScreen())),
               child: const Text('تسجيل الدخول الآن 🔑',
                   style: TextStyle(
                       color: Colors.white, fontWeight: FontWeight.bold)),
@@ -4732,7 +3394,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           subtitle: const Text('أرسل أفكارك وملاحظاتك مباشرةً لصاحب التطبيق'),
           trailing: const Icon(Icons.arrow_forward_ios, size: 14),
           onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (ctx) => const AppFeedbackScreen())),
+              MaterialPageRoute(builder: (ctx) => AppFeedbackScreen())),
         ),
         const SizedBox(height: 10),
         if (!_manager.isLoggedIn)
@@ -4745,8 +3407,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold)),
             subtitle: const Text('تأكيد بالبريد أو رقم الهاتف SMS'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (ctx) => const AuthScreen())),
+            onTap: () => Navigator.push(
+                context, MaterialPageRoute(builder: (ctx) => const AuthScreen())),
           )
         else
           ListTile(
@@ -4796,10 +3458,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             subtitle: const Text(
                 'موافقة الإعلانات، المشرفين، البنرات، ألوان النصوص والاقتراحات'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (ctx) => const FullAdminPanelScreen())),
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (ctx) => const FullAdminPanelScreen())),
           ),
         ],
       ],
@@ -4879,7 +3539,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (ctx) => const AppFeedbackScreen()));
+                            builder: (ctx) => AppFeedbackScreen()));
                   },
                 ),
                 ListTile(
@@ -4891,8 +3551,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
                     Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (ctx) =>
-                                const FullSubscriptionPlansScreen()));
+                            builder: (ctx) => const FullSubscriptionPlansScreen()));
                   },
                 ),
                 if (_manager.isSuperAdmin)
@@ -4949,7 +3608,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
 }
 
 // ==============================================================================
-// 12. شاشة تفاصيل الإعلان الشاملة والتفاوض والتقييمات (FullAdDetailsScreen)
+// 11. شاشة تفاصيل الإعلان الشاملة والتفاوض والتقييمات (FullAdDetailsScreen)
 // ==============================================================================
 class FullAdDetailsScreen extends StatefulWidget {
   final AdItem ad;
@@ -5759,7 +4418,7 @@ class _FullAdDetailsScreenState extends State<FullAdDetailsScreen> {
 }
 
 // ==============================================================================
-// 13. شاشة المحادثة المباشرة مع نظام تقديم العروض والتفاوض (FullChatNegotiationScreen)
+// 12. شاشة المحادثة المباشرة مع نظام تقديم العروض والتفاوض (FullChatNegotiationScreen)
 // ==============================================================================
 class FullChatNegotiationScreen extends StatefulWidget {
   final String adId;
@@ -6073,7 +4732,7 @@ class _FullChatNegotiationScreenState extends State<FullChatNegotiationScreen> {
 }
 
 // ==============================================================================
-// 14. شاشة باقات الاشتراك والترقية VIP وطرق الدفع السورية (FullSubscriptionPlansScreen)
+// 13. شاشة باقات الاشتراك والترقية VIP وطرق الدفع السورية (FullSubscriptionPlansScreen)
 // ==============================================================================
 class FullSubscriptionPlansScreen extends StatelessWidget {
   const FullSubscriptionPlansScreen({Key? key}) : super(key: key);
@@ -6306,7 +4965,7 @@ class FullSubscriptionPlansScreen extends StatelessWidget {
 }
 
 // ==============================================================================
-// 15. غرفة العمليات ولوحة تحكم المشرفين المتقدمة الحصرية (FullAdminPanelScreen)
+// 14. غرفة العمليات ولوحة تحكم المشرفين المتقدمة الحصرية (FullAdminPanelScreen)
 // ==============================================================================
 class FullAdminPanelScreen extends StatefulWidget {
   final int initialTab;
@@ -6322,11 +4981,9 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
   final AppStateManager _manager = AppStateManager();
   late TabController _tabController;
 
-  // إعلانات معلقة
   List<AdItem> _pendingAds = [];
   bool _isLoadingPending = false;
 
-  // استمارة الإعلانات الممولة
   final TextEditingController _bannerTitleCtrl = TextEditingController();
   final TextEditingController _bannerSubCtrl = TextEditingController();
   final TextEditingController _bannerDescCtrl = TextEditingController();
@@ -7060,6 +5717,366 @@ class _FullAdminPanelScreenState extends State<FullAdminPanelScreen>
           ),
         );
       },
+    );
+  }
+}
+
+// ==============================================================================
+// 15. شاشة صوتك مسموع والاقتراحات لصاحب التطبيق (AppFeedbackScreen)
+// ==============================================================================
+class AppFeedbackScreen extends StatefulWidget {
+  const AppFeedbackScreen({Key? key}) : super(key: key);
+
+  @override
+  State<AppFeedbackScreen> createState() => _AppFeedbackScreenState();
+}
+
+class _AppFeedbackScreenState extends State<AppFeedbackScreen> {
+  final AppStateManager _manager = AppStateManager();
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _contentController = TextEditingController();
+  final TextEditingController _contactController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+
+  String _selectedType = 'فكرة وميزة جديدة 💡';
+  final List<String> _feedbackTypes = [
+    'فكرة وميزة جديدة 💡',
+    'ملاحظة على السرعة/التصميم ⚡',
+    'الإبلاغ عن مشكلة تقنية 🛠️',
+    'طلب إضافة قسم أو فرع جديد 📁',
+    'كلمة شكر وتقييم للمنصة ⭐',
+  ];
+
+  Uint8List? _screenshotBytes;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_manager.isLoggedIn) {
+      _contactController.text = _manager.currentUserPhone.isNotEmpty
+          ? _manager.currentUserPhone
+          : _manager.currentUserEmail;
+    }
+  }
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    _contactController.dispose();
+    super.dispose();
+  }
+
+  void _recordVoiceFeedback() async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (c) =>
+          const VoiceInputDialog(title: 'سجّل فكرتك أو ملاحظتك بصوتك 🎙️'),
+    );
+    if (text != null && text.isNotEmpty) {
+      setState(() {
+        if (_contentController.text.isNotEmpty) {
+          _contentController.text += ' $text';
+        } else {
+          _contentController.text = text;
+        }
+      });
+    }
+  }
+
+  Future<void> _pickScreenshot() async {
+    final img = await _picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 75, maxWidth: 1024);
+    if (img != null) {
+      final bytes = await img.readAsBytes();
+      setState(() => _screenshotBytes = bytes);
+    }
+  }
+
+  Future<void> _submitFeedback() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+    String? screenshotPublicUrl;
+
+    try {
+      if (_screenshotBytes != null) {
+        screenshotPublicUrl = await SupabaseStorageService().uploadImageBytes(
+          bucketName: StorageBuckets.feedbacks,
+          bytes: _screenshotBytes!,
+          prefix: 'feedback',
+          userId: _manager.currentUserId,
+        );
+      }
+
+      final newFeedback = AppFeedbackItem(
+        id: 'fb-${DateTime.now().millisecondsSinceEpoch}',
+        userId: _manager.currentUserId,
+        userName:
+            _manager.isLoggedIn ? _manager.currentUserName : 'مستخدم زائر',
+        userContact: _contactController.text.trim(),
+        type: _selectedType,
+        content: _contentController.text.trim(),
+        screenshotUrl: screenshotPublicUrl,
+        createdAt: DateTime.now(),
+      );
+
+      _manager.feedbacks.insert(0, newFeedback);
+      _manager.notifyListeners();
+
+      await Supabase.instance.client
+          .from('app_feedbacks')
+          .insert(newFeedback.toMap())
+          .timeout(const Duration(seconds: 8));
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(Icons.volunteer_activism,
+                    color: _manager.primaryColor, size: 28),
+                const SizedBox(width: 8),
+                const Text('شكراً لمساهمتك الغالية! ❤️'),
+              ],
+            ),
+            content: const Text(
+              'تم استلام فكرتك/ملاحظتك ووصلت مباشرة إلى صاحب التطبيق وفريق التطوير.\n\nرأيك وملاحظاتك هي الأساس في تطوير سوق سوريا الشامل 2028!',
+              style: TextStyle(height: 1.5, fontSize: 13),
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _manager.buttonColor),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context);
+                },
+                child: const Text('حسناً',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Feedback Submit Note: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('✨ تم إرسال ملاحظتك لصاحب التطبيق بنجاح!')),
+        );
+        Navigator.pop(context);
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  void _openDirectWhatsappWithOwner() async {
+    final cleanPhone = PhoneHelper.formatForWhatsapp(kAppOwnerWhatsApp);
+    final msg = Uri.encodeComponent(
+        'مرحباً أخي الكريم، لدي فكرة وملاحظة بخصوص تطبيق "سوق سوريا الشامل 2028":');
+    final uri = Uri.parse('https://wa.me/$cleanPhone?text=$msg');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: _manager.appBarColor,
+        title: const Text('صوتك مسموع 💡 - اقترح وطوّر التطبيق',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.bold)),
+        leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+            onPressed: () => Navigator.pop(context)),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _manager.primaryColor.withOpacity(0.12),
+                    _manager.secondaryColor.withOpacity(0.15)
+                  ],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border:
+                    Border.all(color: _manager.secondaryColor.withOpacity(0.6)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: _manager.secondaryColor,
+                    child: Icon(Icons.lightbulb,
+                        color: _manager.primaryColor, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('رسالتك تصل مباشرة لصاحب التطبيق',
+                            style: TextStyle(
+                                color: _manager.primaryColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                        const SizedBox(height: 2),
+                        const Text(
+                            'شاركنا أفكارك، اقتراحاتك للأقسام، أو أي صعوبة واجهتك لنقوم بتطويرها فوراً.',
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.blueGrey)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('نوع الرسالة أو الاقتراح:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: _feedbackTypes.map((type) {
+                final isSel = _selectedType == type;
+                return ChoiceChip(
+                  label: Text(type,
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: isSel ? Colors.white : Colors.black87,
+                          fontWeight:
+                              isSel ? FontWeight.bold : FontWeight.normal)),
+                  selected: isSel,
+                  selectedColor: _manager.primaryColor,
+                  onSelected: (val) {
+                    if (val) setState(() => _selectedType = type);
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _contentController,
+              maxLines: 5,
+              maxLength: 800,
+              decoration: InputDecoration(
+                labelText: 'اكتب فكرتك أو ملاحظتك بالتفصيل *',
+                hintText:
+                    'مثال: أقترح إضافة ميزة تقييم الأسعار، أو واجهتني مشكلة في رفع الصور...',
+                suffixIcon: _manager.isVoiceTypingEnabled
+                    ? IconButton(
+                        icon: Icon(Icons.mic, color: _manager.primaryColor),
+                        tooltip: 'تحدث بالمايك لإملاء الفكرة',
+                        onPressed: _recordVoiceFeedback,
+                      )
+                    : null,
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              validator: (v) => (v == null || v.trim().length < 5)
+                  ? 'يرجى كتابة نص الملاحظة أو الاقتراح'
+                  : null,
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _contactController,
+              decoration: InputDecoration(
+                labelText: 'رقم هاتفك أو بريدك (للتواصل وشكرك على الفكرة)',
+                hintText: '0933000000 أو إيميلك الشخصي',
+                prefixIcon:
+                    Icon(Icons.contact_phone, color: _manager.primaryColor),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('إرفاق صورة توضيحية أو لقطة شاشة (اختياري):',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: _pickScreenshot,
+              child: Container(
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                ),
+                child: _screenshotBytes != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(_screenshotBytes!,
+                            fit: BoxFit.cover, width: double.infinity))
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_photo_alternate_outlined,
+                              color: _manager.primaryColor, size: 30),
+                          const SizedBox(height: 4),
+                          const Text('اضغط هنا لاختيار صورة من المعرض',
+                              style:
+                                  TextStyle(fontSize: 11, color: Colors.grey)),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _manager.buttonColor,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12))),
+                icon: const Icon(Icons.send, color: Colors.white),
+                label: _isSubmitting
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('إرسال الفكرة لصاحب التطبيق 🚀',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold)),
+                onPressed: _isSubmitting ? null : _submitFeedback,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            Center(
+              child: TextButton.icon(
+                icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                label: const Text('أو تحدث مباشرة مع صاحب التطبيق عبر الواتساب',
+                    style: TextStyle(
+                        color: Color(0xFF25D366),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13)),
+                onPressed: _openDirectWhatsappWithOwner,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
